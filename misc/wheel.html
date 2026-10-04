@@ -1,0 +1,790 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>SYMBOL WHEEL // Flōyél</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600&family=VT323&display=swap');
+
+:root{
+  --bg:#13131a;
+  --panel:#1e1e28;
+  --panel2:#171720;
+  --border:#2a2a38;
+  --dimmer:#1c1c26;
+  --green:#5fcf89;
+  --green-dim:#3a8a58;
+  --purple:#bf95cb;
+  --purple-dim:#7a5e85;
+  --amber:#e8b84b;
+  --red:#cf5f5f;
+  --text:#c8c8d8;
+  --text-dim:#6a6a7a;
+}
+
+*{box-sizing:border-box; border-radius:0 !important;}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Fira Code', monospace;
+  min-height:100vh;
+  position:relative;
+  overflow-x:hidden;
+}
+
+body::before{
+  content:"";
+  position:fixed; inset:0; pointer-events:none; z-index:999;
+  background:repeating-linear-gradient(0deg, rgba(255,255,255,0.03) 0px, rgba(255,255,255,0.03) 1px, transparent 1px, transparent 4px);
+}
+
+.wrap{
+  max-width:920px;
+  margin:0 auto;
+  padding:28px 20px 60px;
+}
+
+h1{
+  font-family:'VT323', monospace;
+  font-size:34px;
+  letter-spacing:4px;
+  color:var(--text);
+  text-transform:uppercase;
+  margin:0 0 4px;
+  text-align:center;
+}
+.subtitle{
+  text-align:center;
+  font-size:10px;
+  letter-spacing:2px;
+  color:var(--text-dim);
+  text-transform:uppercase;
+  margin-bottom:26px;
+}
+
+.panel{
+  background:var(--panel);
+  border:1px solid var(--border);
+  padding:16px 18px;
+  margin-bottom:16px;
+}
+.panel-title{
+  font-size:9px;
+  letter-spacing:2px;
+  color:var(--text-dim);
+  text-transform:uppercase;
+  margin-bottom:12px;
+  border-bottom:1px solid var(--border);
+  padding-bottom:8px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.source-badge{
+  font-size:8px;
+  letter-spacing:1px;
+  padding:2px 7px;
+  border:1px solid var(--purple-dim);
+  color:var(--purple);
+}
+.source-badge.hub{ border-color:var(--green-dim); color:var(--green); }
+
+button{
+  background:none;
+  border:1px solid var(--border);
+  color:var(--text);
+  font-family:'Fira Code', monospace;
+  font-size:10px;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  padding:8px 14px;
+  cursor:pointer;
+  transition:all .15s;
+}
+button:hover:not(:disabled){ border-color:var(--green); color:var(--green); }
+button:disabled{ opacity:.35; cursor:not-allowed; }
+button.primary{ border-color:var(--green); color:var(--green); }
+button.primary:hover:not(:disabled){ background:var(--green); color:#0c1410; }
+button.danger{ border-color:var(--red); color:var(--red); }
+button.danger:hover:not(:disabled){ background:var(--red); color:#1a0d0d; }
+button.active{ border-color:var(--purple); color:var(--purple); background:rgba(191,149,203,0.08); }
+
+select, input[type=text]{
+  background:var(--dimmer);
+  border:1px solid var(--border);
+  color:var(--text);
+  font-family:'Fira Code', monospace;
+  font-size:11px;
+  padding:7px 9px;
+  outline:none;
+}
+select:focus, input[type=text]:focus{ border-color:var(--green); }
+
+.row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.row + .row{ margin-top:10px; }
+.spacer{ flex:1; }
+
+.status-line{ font-size:10px; color:var(--text-dim); letter-spacing:1px; }
+.status-line b{ color:var(--green); font-weight:600; }
+
+.mode-toggle{ display:flex; gap:8px; }
+
+#memoryControls{ display:none; }
+#memoryControls.show{ display:block; }
+
+#folderPickerRow.hidden{ display:none; }
+#folderHint.hidden{ display:none; }
+
+.stat-badges{ display:flex; gap:16px; margin-top:10px; }
+.badge{ font-size:9px; letter-spacing:1px; color:var(--text-dim); text-transform:uppercase; }
+.badge b{ color:var(--text); font-family:'VT323',monospace; font-size:16px; letter-spacing:0; margin-left:5px; }
+.badge.pool b{ color:var(--green); }
+.badge.used b{ color:var(--amber); }
+
+/* ---- WHEEL / REEL ---- */
+.reel-outer{
+  position:relative;
+  height:220px;
+  background:var(--panel2);
+  border:1px solid var(--border);
+  overflow:hidden;
+  margin-bottom:14px;
+}
+.reel-outer::before, .reel-outer::after{
+  content:"";
+  position:absolute; top:0; bottom:0; width:80px; z-index:5; pointer-events:none;
+}
+.reel-outer::before{ left:0; background:linear-gradient(90deg, var(--panel2), transparent); }
+.reel-outer::after{ right:0; background:linear-gradient(270deg, var(--panel2), transparent); }
+
+.pointer{
+  position:absolute; left:50%; top:0; bottom:0; width:2px;
+  background:var(--green);
+  z-index:6;
+  transform:translateX(-50%);
+  box-shadow:0 0 8px var(--green);
+}
+.pointer::before, .pointer::after{
+  content:""; position:absolute; left:50%; transform:translateX(-50%);
+  width:0; height:0; border-left:7px solid transparent; border-right:7px solid transparent;
+}
+.pointer::before{ top:-1px; border-top:9px solid var(--green); }
+.pointer::after{ bottom:-1px; border-bottom:9px solid var(--green); }
+
+.reel-track{
+  position:absolute; top:0; left:50%; height:100%;
+  display:flex; align-items:center;
+  will-change:transform;
+}
+.reel-item{
+  width:150px; height:180px; flex:0 0 150px;
+  margin:0 6px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  background:var(--panel);
+  border:1px solid var(--border);
+}
+.reel-item img{
+  width:110px; height:110px; object-fit:contain;
+  filter:grayscale(0.15);
+}
+.reel-item .rid{ font-size:9px; color:var(--text-dim); letter-spacing:1px; margin-top:8px; }
+.reel-item .rname{ font-size:11px; color:var(--text); letter-spacing:1px; margin-top:2px; text-transform:uppercase; text-align:center; padding:0 6px; }
+
+.reel-placeholder{
+  display:flex; align-items:center; justify-content:center; height:100%;
+  color:var(--text-dim); font-size:10px; letter-spacing:2px; text-transform:uppercase;
+  text-align:center; padding:0 20px;
+}
+
+.spin-row{ display:flex; justify-content:center; margin-bottom:8px; }
+button.spin-btn{
+  font-size:13px; padding:12px 42px; letter-spacing:3px;
+}
+
+/* ---- RESULT ---- */
+#result{
+  display:none;
+  position:relative;
+  border:1px solid var(--green);
+  background:var(--panel);
+  padding:24px;
+  text-align:center;
+  margin-top:6px;
+  overflow:hidden;
+  animation:resultIn .4s ease-out;
+}
+#result.show{ display:block; }
+@keyframes resultIn{
+  from{ opacity:0; transform:scale(0.92); }
+  to{ opacity:1; transform:scale(1); }
+}
+#result::before{
+  content:""; position:absolute; inset:0;
+  box-shadow:0 0 30px rgba(95,207,137,0.25) inset;
+  pointer-events:none;
+}
+#result img{
+  width:150px; height:150px; object-fit:contain;
+  margin-bottom:14px;
+  filter:drop-shadow(0 0 14px rgba(95,207,137,0.5));
+}
+#result .r-label{ font-size:9px; letter-spacing:3px; color:var(--green); text-transform:uppercase; margin-bottom:6px; }
+#result .r-name{ font-family:'VT323', monospace; font-size:32px; letter-spacing:2px; color:var(--text); text-transform:uppercase; }
+#result .r-id{ font-size:11px; color:var(--text-dim); letter-spacing:1px; margin-top:4px; }
+#result .r-file{ font-size:9px; color:var(--text-dim); letter-spacing:1px; margin-top:10px; word-break:break-all; }
+
+.particle{
+  position:absolute; top:50%; left:50%; width:5px; height:5px;
+  pointer-events:none;
+  animation:burst 900ms ease-out forwards;
+}
+@keyframes burst{
+  from{ transform:translate(-50%,-50%) rotate(var(--ang)) translateX(0); opacity:1; }
+  to{ transform:translate(-50%,-50%) rotate(var(--ang)) translateX(var(--dist)); opacity:0; }
+}
+
+.folder-hint{ font-size:9px; color:var(--text-dim); margin-top:8px; letter-spacing:1px; line-height:1.6; }
+
+.empty-pool{
+  text-align:center; padding:14px; color:var(--amber); font-size:10px; letter-spacing:1px; text-transform:uppercase;
+  border:1px solid var(--amber); background:rgba(232,184,75,0.06); margin-bottom:12px; display:none;
+}
+.empty-pool.show{ display:block; }
+
+.used-list{ max-height:110px; overflow-y:auto; margin-top:10px; }
+.used-list .u-item{ font-size:9px; color:var(--text-dim); letter-spacing:1px; padding:3px 0; border-bottom:1px solid var(--border); }
+.used-list .u-item b{ color:var(--text); }
+
+/* ---- MODAL (replaces native prompt/confirm/alert — unreliable inside
+   pywebview's embedded browser engines) ---- */
+.modal-overlay{
+  display:none;
+  position:fixed; inset:0; z-index:1000;
+  background:rgba(0,0,0,0.7);
+  align-items:center; justify-content:center;
+}
+.modal-overlay.show{ display:flex; }
+.modal-box{
+  background:var(--panel);
+  border:1px solid var(--border);
+  padding:22px;
+  width:320px;
+  max-width:88vw;
+}
+.modal-title{
+  font-family:'VT323', monospace;
+  font-size:20px;
+  letter-spacing:2px;
+  color:var(--text);
+  text-transform:uppercase;
+  margin-bottom:10px;
+}
+.modal-body{
+  font-size:11px;
+  color:var(--text-dim);
+  letter-spacing:0.5px;
+  line-height:1.5;
+  margin-bottom:14px;
+}
+.modal-box input[type=text]{ width:100%; margin-bottom:16px; }
+.modal-actions{ display:flex; justify-content:flex-end; gap:8px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <h1>Symbol Wheel</h1>
+  <div class="subtitle">FLŌYÉL // RANDOM DRAW MODULE</div>
+
+  <div class="panel">
+    <div class="panel-title">
+      <span>01 // Symbol Source</span>
+      <span class="source-badge" id="sourceBadge">…</span>
+    </div>
+    <div class="row" id="folderPickerRow">
+      <button id="btnPickFolder" class="primary">Select Symbols Folder</button>
+      <div class="status-line" id="folderStatus">No folder loaded.</div>
+    </div>
+    <div class="row" id="hubStatusRow" style="display:none;">
+      <div class="status-line" id="hubStatus">Scanning symbols/…</div>
+    </div>
+    <div class="folder-hint" id="folderHint">Point this at your "symbols" folder (or the parent "System folder") — it scans every subfolder for an image file and treats each subfolder as one symbol.</div>
+    <input type="file" id="folderInput" webkitdirectory directory multiple style="display:none">
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><span>02 // Mode</span></div>
+    <div class="row mode-toggle">
+      <button id="modeFreeBtn" class="active">Free For All</button>
+      <button id="modeMemoryBtn">Memory</button>
+      <div class="spacer"></div>
+    </div>
+
+    <div id="memoryControls">
+      <div class="row" style="margin-top:14px;">
+        <select id="savefileSelect"></select>
+        <button id="btnNewSavefile">New Savefile</button>
+        <button id="btnResetSavefile" class="danger">Reset Savefile</button>
+        <button id="btnDeleteSavefile" class="danger">Delete Savefile</button>
+      </div>
+      <div class="stat-badges">
+        <div class="badge pool">POOL REMAINING <b id="poolCount">0</b></div>
+        <div class="badge used">DRAWN <b id="usedCount">0</b></div>
+      </div>
+      <div class="used-list" id="usedList"></div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title"><span>03 // Draw</span></div>
+    <div class="empty-pool" id="emptyPoolMsg">Pool exhausted — all symbols in this savefile have been drawn. Reset the savefile to continue.</div>
+
+    <div class="reel-outer">
+      <div class="pointer"></div>
+      <div class="reel-track" id="reelTrack">
+        <div class="reel-placeholder" id="reelPlaceholder">Load a symbol folder to begin</div>
+      </div>
+    </div>
+
+    <div class="spin-row">
+      <button id="spinBtn" class="primary spin-btn" disabled>SPIN</button>
+    </div>
+
+    <div id="result">
+      <div class="r-label">Selected</div>
+      <img id="resultImg" src="" alt="">
+      <div class="r-name" id="resultName"></div>
+      <div class="r-id" id="resultId"></div>
+      <div class="r-file" id="resultFile"></div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal-box">
+    <div class="modal-title" id="modalTitle"></div>
+    <div class="modal-body" id="modalBody"></div>
+    <input type="text" id="modalInput" style="display:none">
+    <div class="modal-actions">
+      <button id="modalCancel">Cancel</button>
+      <button id="modalConfirm" class="primary">OK</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ---------------- STATE ---------------- */
+let allSymbols = [];      // {key, id, name, fileName, url}
+let mode = 'free';        // 'free' | 'memory'
+let currentSavefile = null;
+let spinning = false;
+let servedOverHttp = (location.protocol === 'http:' || location.protocol === 'https:');
+let savefilesCache = {};  // {name: {excluded: [key,...]}}
+
+const LS_SAVEFILES = 'symbolWheel_savefiles_v1';
+const IMG_EXT = ['.gif','.png','.jpg','.jpeg','.webp','.svg'];
+
+/* ---------------- BOOT ---------------- */
+function boot(){
+  document.getElementById('sourceBadge').textContent = servedOverHttp ? 'HUB / SERVER' : 'STANDALONE';
+  document.getElementById('sourceBadge').classList.toggle('hub', servedOverHttp);
+  document.getElementById('folderPickerRow').classList.toggle('hidden', servedOverHttp);
+  document.getElementById('folderHint').classList.toggle('hidden', servedOverHttp);
+  document.getElementById('hubStatusRow').style.display = servedOverHttp ? 'flex' : 'none';
+
+  savefilesCache = loadSavefilesLS();
+  refreshSavefileDropdown();
+
+  if (servedOverHttp){
+    loadSymbolsFromServer();
+  } else {
+    refreshPool();
+  }
+}
+boot();
+
+/* ---------------- SERVER-SIDE SYMBOL LOADING (hub's static server) ----------------
+   The hub serves the whole project folder over plain HTTP with Python's
+   default directory-listing behaviour still on (nothing hub.py disables).
+   So instead of a folder picker, just fetch the listings directly. */
+
+async function fetchDirEntries(path){
+  const res = await fetch(path);
+  if (!res.ok) throw new Error(`${res.status} on ${path}`);
+  const html = await res.text();
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  return Array.from(doc.querySelectorAll('a'))
+    .map(a => a.getAttribute('href'))
+    .filter(h => h && h !== '../' && h !== './');
+}
+
+async function loadSymbolsFromServer(){
+  const statusEl = document.getElementById('hubStatus');
+  statusEl.textContent = 'Scanning symbols/…';
+  try{
+    const topEntries = await fetchDirEntries('/symbols/');
+    const folderHrefs = topEntries.filter(h => h.endsWith('/'));
+
+    const results = await Promise.all(folderHrefs.map(async (href) => {
+      const folderName = decodeURIComponent(href.replace(/\/$/, ''));
+      const m = folderName.match(/^(\d+)\s*-\s*(.+)$/);
+      if (!m) return null; // not a symbol folder, skip
+      const id = m[1].trim(), name = m[2].trim();
+      let fileEntries;
+      try{ fileEntries = await fetchDirEntries('/symbols/' + href); }
+      catch(e){ return null; }
+      const imgHref = fileEntries.find(h =>
+        !h.endsWith('/') && IMG_EXT.some(ext => h.toLowerCase().endsWith(ext))
+      );
+      if (!imgHref) return null;
+      return {
+        key: folderName,
+        id, name,
+        fileName: decodeURIComponent(imgHref),
+        url: '/symbols/' + href + imgHref
+      };
+    }));
+
+    allSymbols = results.filter(Boolean)
+      .sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric:true}));
+
+    statusEl.innerHTML = allSymbols.length
+      ? `Loaded <b style="color:var(--green)">${allSymbols.length}</b> symbol${allSymbols.length===1?'':'s'} from symbols/.`
+      : `No symbols found in symbols/.`;
+  }catch(e){
+    statusEl.textContent = "Couldn't read symbols/ — " + e.message;
+  }
+  refreshPool();
+}
+
+/* ---------------- STANDALONE FOLDER SCAN (file:// fallback) ---------------- */
+document.getElementById('btnPickFolder').addEventListener('click', () => {
+  document.getElementById('folderInput').click();
+});
+
+document.getElementById('folderInput').addEventListener('change', (e) => {
+  const files = Array.from(e.target.files);
+  if (!files.length){ return; }
+
+  const groups = new Map(); // parentPath -> file
+  for (const f of files){
+    const rel = f.webkitRelativePath || f.name;
+    const parts = rel.split('/');
+    if (parts.length < 2) continue;
+    const fname = parts[parts.length - 1];
+    const ext = '.' + fname.split('.').pop().toLowerCase();
+    if (!IMG_EXT.includes(ext)) continue;
+    const parentFolder = parts[parts.length - 2];
+    const parentPath = parts.slice(0, parts.length - 1).join('/');
+    if (!groups.has(parentPath)){
+      groups.set(parentPath, {folderName: parentFolder, file: f});
+    }
+  }
+
+  allSymbols = [];
+  for (const [path, {folderName, file}] of groups.entries()){
+    const m = folderName.match(/^(\d+)\s*-\s*(.+)$/);
+    const id = m ? m[1] : folderName;
+    const name = m ? m[2].trim() : folderName;
+    allSymbols.push({
+      key: path,
+      id,
+      name,
+      fileName: file.name,
+      url: URL.createObjectURL(file)
+    });
+  }
+  allSymbols.sort((a,b) => a.id.localeCompare(b.id, undefined, {numeric:true}));
+
+  document.getElementById('folderStatus').innerHTML =
+    allSymbols.length
+      ? `Loaded <b>${allSymbols.length}</b> symbol${allSymbols.length===1?'':'s'}.`
+      : `No symbols found — check folder structure.`;
+
+  refreshPool();
+});
+
+/* ---------------- MODAL (replaces prompt/confirm/alert) ----------------
+   Native window.prompt/confirm/alert are unreliable inside pywebview's
+   embedded browser engines (can hang the render thread on some backends) —
+   this is a plain in-page substitute styled to match. */
+function modalAsk({title, body='', input=false, defaultValue='', confirmLabel='OK', danger=false, hideCancel=false}){
+  return new Promise((resolve) => {
+    const overlay = document.getElementById('modalOverlay');
+    const inputEl = document.getElementById('modalInput');
+    const confirmBtn = document.getElementById('modalConfirm');
+    const cancelBtn = document.getElementById('modalCancel');
+
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalBody').textContent = body;
+    inputEl.style.display = input ? 'block' : 'none';
+    inputEl.value = defaultValue;
+    confirmBtn.textContent = confirmLabel;
+    confirmBtn.className = danger ? 'danger' : 'primary';
+    cancelBtn.style.display = hideCancel ? 'none' : 'inline-block';
+    overlay.classList.add('show');
+    if (input){ setTimeout(() => inputEl.focus(), 30); }
+
+    function cleanup(){
+      overlay.classList.remove('show');
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      overlay.removeEventListener('click', onOverlayClick);
+      inputEl.removeEventListener('keydown', onKey);
+    }
+    function onConfirm(){ const v = input ? inputEl.value.trim() : true; cleanup(); resolve(v); }
+    function onCancel(){ cleanup(); resolve(input ? null : false); }
+    function onOverlayClick(e){ if (e.target === overlay && !hideCancel) onCancel(); }
+    function onKey(e){ if (e.key === 'Enter'){ onConfirm(); } if (e.key === 'Escape' && !hideCancel){ onCancel(); } }
+
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    overlay.addEventListener('click', onOverlayClick);
+    inputEl.addEventListener('keydown', onKey);
+  });
+}
+
+/* ---------------- MODE SWITCH ---------------- */
+document.getElementById('modeFreeBtn').addEventListener('click', () => setMode('free'));
+document.getElementById('modeMemoryBtn').addEventListener('click', () => setMode('memory'));
+
+function setMode(m){
+  mode = m;
+  document.getElementById('modeFreeBtn').classList.toggle('active', m==='free');
+  document.getElementById('modeMemoryBtn').classList.toggle('active', m==='memory');
+  document.getElementById('memoryControls').classList.toggle('show', m==='memory');
+  refreshPool();
+}
+
+/* ---------------- SAVEFILES (localStorage — persists for real once the
+   hub window is running, since hub.py already gives it a real storage
+   profile via storage_path in webview.start()) ---------------- */
+function loadSavefilesLS(){
+  try{ return JSON.parse(localStorage.getItem(LS_SAVEFILES) || '{}'); }
+  catch(e){ return {}; }
+}
+function writeSavefilesLS(data){
+  localStorage.setItem(LS_SAVEFILES, JSON.stringify(data));
+  savefilesCache = data;
+}
+
+function refreshSavefileDropdown(){
+  const names = Object.keys(savefilesCache);
+  const sel = document.getElementById('savefileSelect');
+  sel.innerHTML = '';
+  if (!names.length){
+    const opt = document.createElement('option');
+    opt.textContent = '— no savefiles —';
+    opt.disabled = true;
+    sel.appendChild(opt);
+    currentSavefile = null;
+    return;
+  }
+  for (const n of names){
+    const opt = document.createElement('option');
+    opt.value = n; opt.textContent = n;
+    sel.appendChild(opt);
+  }
+  if (!currentSavefile || !names.includes(currentSavefile)){
+    currentSavefile = names[0];
+  }
+  sel.value = currentSavefile;
+}
+document.getElementById('savefileSelect').addEventListener('change', (e) => {
+  currentSavefile = e.target.value;
+  refreshPool();
+});
+
+document.getElementById('btnNewSavefile').addEventListener('click', async () => {
+  const name = await modalAsk({title:'New Savefile', body:'Enter a name for this savefile:', input:true, confirmLabel:'Create'});
+  if (!name) return;
+  if (savefilesCache[name]){
+    await modalAsk({title:'Already Exists', body:`A savefile named "${name}" already exists.`, confirmLabel:'OK', hideCancel:true});
+    return;
+  }
+  const data = loadSavefilesLS();
+  data[name] = { excluded: [] };
+  writeSavefilesLS(data);
+  currentSavefile = name;
+  refreshSavefileDropdown();
+  refreshPool();
+});
+
+document.getElementById('btnResetSavefile').addEventListener('click', async () => {
+  if (!currentSavefile) return;
+  const ok = await modalAsk({title:'Reset Savefile', body:`Reset "${currentSavefile}"? This clears its drawn history.`, confirmLabel:'Reset', danger:true});
+  if (!ok) return;
+  const data = loadSavefilesLS();
+  data[currentSavefile] = { excluded: [] };
+  writeSavefilesLS(data);
+  refreshPool();
+});
+
+document.getElementById('btnDeleteSavefile').addEventListener('click', async () => {
+  if (!currentSavefile) return;
+  const ok = await modalAsk({title:'Delete Savefile', body:`Delete "${currentSavefile}"? This cannot be undone.`, confirmLabel:'Delete', danger:true});
+  if (!ok) return;
+  const data = loadSavefilesLS();
+  delete data[currentSavefile];
+  writeSavefilesLS(data);
+  currentSavefile = null;
+  refreshSavefileDropdown();
+  refreshPool();
+});
+
+/* ---------------- POOL ---------------- */
+function getPool(){
+  if (mode === 'free') return allSymbols;
+  const excluded = (currentSavefile && savefilesCache[currentSavefile]) ? savefilesCache[currentSavefile].excluded : [];
+  return allSymbols.filter(s => !excluded.includes(s.key));
+}
+
+function refreshPool(){
+  const pool = getPool();
+  const emptyMsg = document.getElementById('emptyPoolMsg');
+  const spinBtn = document.getElementById('spinBtn');
+
+  if (mode === 'memory'){
+    const excluded = (currentSavefile && savefilesCache[currentSavefile]) ? savefilesCache[currentSavefile].excluded : [];
+    document.getElementById('poolCount').textContent = pool.length;
+    document.getElementById('usedCount').textContent = excluded.length;
+
+    const usedList = document.getElementById('usedList');
+    usedList.innerHTML = '';
+    excluded.slice().reverse().forEach(key => {
+      const sym = allSymbols.find(s => s.key === key);
+      const div = document.createElement('div');
+      div.className = 'u-item';
+      div.innerHTML = sym ? `<b>${sym.id}</b> — ${sym.name}` : `<b>${key}</b>`;
+      usedList.appendChild(div);
+    });
+  }
+
+  const poolEmpty = allSymbols.length > 0 && pool.length === 0;
+  emptyMsg.classList.toggle('show', poolEmpty && mode==='memory');
+  spinBtn.disabled = spinning || allSymbols.length === 0 || pool.length === 0 || (mode==='memory' && !currentSavefile);
+
+  if (allSymbols.length === 0){
+    const msg = servedOverHttp ? 'Waiting on symbols/…' : 'Load a symbol folder to begin';
+    document.getElementById('reelTrack').innerHTML = `<div class="reel-placeholder">${msg}</div>`;
+  } else if (!spinning) {
+    renderStaticReel(pool);
+  }
+}
+
+function renderStaticReel(pool){
+  const track = document.getElementById('reelTrack');
+  track.style.transform = 'translateX(0)';
+  track.innerHTML = '';
+  const sample = pool.slice(0, 12);
+  if (!sample.length){
+    track.innerHTML = '<div class="reel-placeholder">Pool is empty</div>';
+    return;
+  }
+  for (const s of sample){
+    track.appendChild(reelItemEl(s));
+  }
+}
+
+function reelItemEl(s){
+  const el = document.createElement('div');
+  el.className = 'reel-item';
+  el.innerHTML = `<img src="${s.url}" alt=""><div class="rid">${s.id}</div><div class="rname">${s.name}</div>`;
+  return el;
+}
+
+/* ---------------- SPIN ---------------- */
+document.getElementById('spinBtn').addEventListener('click', spin);
+
+function spin(){
+  const pool = getPool();
+  if (!pool.length || spinning) return;
+  spinning = true;
+  document.getElementById('spinBtn').disabled = true;
+  document.getElementById('result').classList.remove('show');
+
+  const target = pool[Math.floor(Math.random() * pool.length)];
+
+  const ITEM_W = 150 + 12;
+  // Fixed, capped strip length — independent of pool size. Building
+  // REPEATS full shuffled copies of a large pool (hundreds of symbols)
+  // was creating thousands of <img> elements per spin, which choked
+  // rendering: slow to start, then jumped to the final frame once the
+  // browser caught up (looked like an instant "snap"). Sampling with
+  // repetition keeps the DOM small no matter how big the collection is.
+  const STRIP_LEN = Math.min(55, Math.max(28, pool.length * 3));
+  const TRAIL_LEN = 8; // items after the target, so landing shows symbols on both sides
+  let strip = [];
+  for (let i = 0; i < STRIP_LEN - 1; i++){
+    strip.push(pool[Math.floor(Math.random() * pool.length)]);
+  }
+  const targetIndex = strip.length; // position target will land at
+  strip.push(target);
+  for (let i = 0; i < TRAIL_LEN; i++){
+    strip.push(pool[Math.floor(Math.random() * pool.length)]);
+  }
+
+  const track = document.getElementById('reelTrack');
+  track.innerHTML = '';
+  track.style.transition = 'none';
+  track.style.transform = 'translateX(0)';
+  for (const s of strip){
+    track.appendChild(reelItemEl(s));
+  }
+
+  const finalX = -(targetIndex * ITEM_W) - (ITEM_W / 2);
+  const SPIN_MS = 5600;
+
+  void track.offsetWidth;
+  track.style.transition = `transform ${SPIN_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+  track.style.transform = `translateX(${finalX}px)`;
+
+  setTimeout(() => onSpinComplete(target), SPIN_MS + 100);
+}
+
+function onSpinComplete(target){
+  spinning = false;
+
+  if (mode === 'memory' && currentSavefile){
+    const data = loadSavefilesLS();
+    if (!data[currentSavefile]) data[currentSavefile] = {excluded: []};
+    if (!data[currentSavefile].excluded.includes(target.key)){
+      data[currentSavefile].excluded.push(target.key);
+    }
+    writeSavefilesLS(data);
+  }
+
+  showResult(target);
+  refreshPool();
+}
+
+function showResult(s){
+  document.getElementById('resultImg').src = s.url;
+  document.getElementById('resultName').textContent = s.name;
+  document.getElementById('resultId').textContent = '#' + s.id;
+  document.getElementById('resultFile').textContent = s.fileName;
+  const result = document.getElementById('result');
+  result.classList.add('show');
+  burstParticles(result);
+}
+
+function burstParticles(container){
+  const colors = ['#5fcf89','#bf95cb','#e8b84b','#c8c8d8'];
+  for (let i = 0; i < 26; i++){
+    const p = document.createElement('div');
+    p.className = 'particle';
+    const ang = Math.random() * 360;
+    const dist = 60 + Math.random() * 90;
+    p.style.setProperty('--ang', ang + 'deg');
+    p.style.setProperty('--dist', dist + 'px');
+    p.style.background = colors[Math.floor(Math.random()*colors.length)];
+    container.appendChild(p);
+    setTimeout(() => p.remove(), 950);
+  }
+}
+</script>
+
+</body>
+</html>

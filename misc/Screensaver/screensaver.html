@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Screensaver</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #000; cursor: none; }
+
+  #bg {
+    position: fixed; inset: 0;
+    background-size: cover; background-position: center; background-repeat: no-repeat;
+    filter: brightness(0.6) saturate(1.2); z-index: 0;
+  }
+  #bg::after {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.65) 100%);
+  }
+
+  #scene {
+    position: fixed; inset: 0;
+    perspective: 900px; perspective-origin: 50% 50%;
+    z-index: 1;
+  }
+
+  .creature {
+    position: absolute;
+    transform-style: preserve-3d;
+    will-change: transform;
+    pointer-events: none;
+  }
+  .creature img { display: block; width: 100%; height: 100%; object-fit: contain; }
+
+  /* CONFIG PANEL */
+  #cfg {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.88);
+    display: flex; align-items: center; justify-content: center;
+    z-index: 100;
+    font-family: 'Courier New', monospace;
+    color: #c8e6ff;
+    cursor: default;
+  }
+  #cfg-box {
+    background: rgba(10,20,40,0.97);
+    border: 1px solid rgba(100,180,255,0.3);
+    padding: 36px 44px;
+    max-width: 560px; width: 90%;
+    box-shadow: 0 0 60px rgba(60,140,255,0.15);
+  }
+  #cfg h1 {
+    font-size: 1.1rem; letter-spacing: 0.25em; text-transform: uppercase;
+    color: #7ec8ff; margin-bottom: 28px;
+    border-bottom: 1px solid rgba(100,180,255,0.2); padding-bottom: 14px;
+  }
+  .field { margin-bottom: 18px; }
+  .field label {
+    display: block; font-size: 0.72rem; letter-spacing: 0.18em;
+    text-transform: uppercase; color: #7ec8ff; margin-bottom: 6px; opacity: 0.75;
+  }
+  .field input[type=range] { width: 100%; accent-color: #5aabff; }
+  .field span { font-size: 0.8rem; opacity: 0.6; }
+  .row { display: flex; gap: 18px; }
+  .row .field { flex: 1; }
+
+  select {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(100,180,255,0.25);
+    color: #d0eaff; padding: 8px 12px;
+    font-family: 'Courier New', monospace; font-size: 0.85rem; outline: none;
+  }
+
+  /* file pick buttons */
+  .pick-btn {
+    display: flex; align-items: center; gap: 12px;
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(100,180,255,0.2);
+    padding: 9px 14px; cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    width: 100%;
+  }
+  .pick-btn:hover { border-color: rgba(100,180,255,0.5); background: rgba(60,130,255,0.1); }
+  .pick-btn .pick-icon { font-size: 1.1rem; opacity: 0.7; }
+  .pick-label { font-size: 0.8rem; color: #7ec8ff; letter-spacing: 0.08em; flex: 1; text-align: left; }
+  .pick-status { font-size: 0.72rem; opacity: 0.5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 180px; }
+  .pick-status.ok { opacity: 1; color: #7fffc4; }
+
+  input[type=file] { display: none; }
+
+  #start-btn {
+    margin-top: 26px; width: 100%;
+    background: rgba(60,130,255,0.15);
+    border: 1px solid rgba(100,180,255,0.4);
+    color: #a8d8ff;
+    font-family: 'Courier New', monospace; font-size: 0.85rem;
+    letter-spacing: 0.2em; text-transform: uppercase;
+    padding: 12px; cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+  }
+  #start-btn:hover { background: rgba(60,130,255,0.35); color: #ddf0ff; }
+  #start-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+  .note { margin-top: 16px; font-size: 0.67rem; opacity: 0.35; line-height: 1.7; }
+
+  #hint {
+    position: fixed; bottom: 20px; right: 24px;
+    font-family: 'Courier New', monospace; font-size: 0.65rem;
+    letter-spacing: 0.15em; color: rgba(180,220,255,0.3);
+    z-index: 10; text-transform: uppercase; display: none;
+  }
+</style>
+</head>
+<body>
+
+<div id="bg"></div>
+<div id="scene"></div>
+<div id="hint">ESC — settings</div>
+
+<div id="cfg">
+  <div id="cfg-box">
+    <h1>✦ Screensaver</h1>
+
+    <!-- GIF folder picker -->
+    <div class="field">
+      <label>GIF folder</label>
+      <button class="pick-btn" onclick="document.getElementById('gif-input').click()">
+        <span class="pick-icon">📂</span>
+        <span class="pick-label">Choose symbols folder…</span>
+        <span class="pick-status" id="gif-status">no folder selected</span>
+      </button>
+      <input type="file" id="gif-input" webkitdirectory multiple>
+    </div>
+
+    <!-- Background picker -->
+    <div class="field">
+      <label>Background image</label>
+      <button class="pick-btn" onclick="document.getElementById('bg-input').click()">
+        <span class="pick-icon">🖼</span>
+        <span class="pick-label">Choose background…</span>
+        <span class="pick-status" id="bg-status">no file selected</span>
+      </button>
+      <input type="file" id="bg-input" accept="image/*">
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Creatures — <span id="count-val">12</span></label>
+        <input type="range" id="count" min="3" max="40" value="12"
+               oninput="document.getElementById('count-val').textContent=this.value">
+      </div>
+      <div class="field">
+        <label>Size px — <span id="size-val">140</span></label>
+        <input type="range" id="size" min="40" max="400" value="140"
+               oninput="document.getElementById('size-val').textContent=this.value">
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="field">
+        <label>Speed — <span id="speed-val">5</span></label>
+        <input type="range" id="speed" min="1" max="10" value="5"
+               oninput="document.getElementById('speed-val').textContent=this.value">
+      </div>
+      <div class="field">
+        <label>Depth — <span id="depth-val">400</span></label>
+        <input type="range" id="depth" min="50" max="800" value="400"
+               oninput="document.getElementById('depth-val').textContent=this.value">
+      </div>
+    </div>
+
+    <div class="field">
+      <label>Motion style</label>
+      <select id="motion">
+        <option value="butterfly">Butterfly — erratic, flitting</option>
+        <option value="jellyfish">Jellyfish — slow, pulsing drift</option>
+        <option value="mixed">Mixed — random per creature</option>
+      </select>
+    </div>
+
+    <button id="start-btn" onclick="startScreensaver()" disabled>▶ Launch</button>
+    <p class="note">Select a GIF folder and background image, then launch.<br>Press ESC during playback to return here.</p>
+  </div>
+</div>
+
+<script>
+// ── state ────────────────────────────────────────────────────────────────────
+let gifBlobUrls = [];   // blob URLs for each gif file
+let bgBlobUrl   = null;
+let creatures   = [];
+let animFrame;
+let running     = false;
+let CONFIG      = {};
+
+// ── file pickers ─────────────────────────────────────────────────────────────
+document.getElementById('gif-input').addEventListener('change', function() {
+  // Group files by subfolder — one GIF per subfolder (one per symbol).
+  // webkitRelativePath: "symbols/0001 - inni/symbol.gif"
+  const allFiles = Array.from(this.files);
+
+  const byFolder = new Map();
+  for (const f of allFiles) {
+    if (!f.name.toLowerCase().endsWith('.gif')) continue;
+    const parts = f.webkitRelativePath.split('/');
+    const folderKey = parts.slice(0, -1).join('/');
+    if (!byFolder.has(folderKey)) byFolder.set(folderKey, []);
+    byFolder.get(folderKey).push(f);
+  }
+
+  // pick one gif per subfolder (random if a folder somehow has multiple)
+  const chosen = [];
+  for (const [, gifs] of byFolder) {
+    chosen.push(gifs[Math.floor(Math.random() * gifs.length)]);
+  }
+
+  // revoke old blob urls
+  gifBlobUrls.forEach(u => URL.revokeObjectURL(u));
+  gifBlobUrls = chosen.map(f => URL.createObjectURL(f));
+
+  const status = document.getElementById('gif-status');
+  if (chosen.length === 0) {
+    status.textContent = 'no GIFs found';
+    status.className = 'pick-status';
+  } else {
+    status.textContent = `${chosen.length} symbol${chosen.length > 1 ? 's' : ''} loaded`;
+    status.className = 'pick-status ok';
+  }
+  updateStartBtn();
+});
+
+document.getElementById('bg-input').addEventListener('change', function() {
+  if (this.files.length === 0) return;
+  if (bgBlobUrl) URL.revokeObjectURL(bgBlobUrl);
+  bgBlobUrl = URL.createObjectURL(this.files[0]);
+
+  const status = document.getElementById('bg-status');
+  status.textContent = this.files[0].name;
+  status.className = 'pick-status ok';
+  updateStartBtn();
+});
+
+function updateStartBtn() {
+  const btn = document.getElementById('start-btn');
+  btn.disabled = !(gifBlobUrls.length > 0 && bgBlobUrl);
+}
+
+// ── ESC ──────────────────────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && running) stopScreensaver();
+});
+
+function stopScreensaver() {
+  running = false;
+  cancelAnimationFrame(animFrame);
+  document.getElementById('cfg').style.display = 'flex';
+  document.getElementById('hint').style.display = 'none';
+  document.getElementById('scene').innerHTML = '';
+  creatures = [];
+}
+
+// ── launch ───────────────────────────────────────────────────────────────────
+function startScreensaver() {
+  if (!gifBlobUrls.length || !bgBlobUrl) return;
+
+  CONFIG = {
+    count:  +document.getElementById('count').value,
+    size:   +document.getElementById('size').value,
+    speed:  +document.getElementById('speed').value,
+    depth:  +document.getElementById('depth').value,
+    motion: document.getElementById('motion').value,
+  };
+
+  document.getElementById('bg').style.backgroundImage = `url('${bgBlobUrl}')`;
+  document.getElementById('cfg').style.display = 'none';
+  document.getElementById('hint').style.display = 'block';
+
+  spawnCreatures();
+  running = true;
+  loop();
+}
+
+// ── helpers ──────────────────────────────────────────────────────────────────
+const rand  = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const TAU   = Math.PI * 2;
+
+// ── spawn ────────────────────────────────────────────────────────────────────
+function spawnCreatures() {
+  const scene = document.getElementById('scene');
+  scene.innerHTML = '';
+  creatures = [];
+
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+
+  for (let i = 0; i < CONFIG.count; i++) {
+    const blobUrl = gifBlobUrls[Math.floor(Math.random() * gifBlobUrls.length)];
+    const motionType = CONFIG.motion === 'mixed'
+      ? (Math.random() < 0.5 ? 'butterfly' : 'jellyfish')
+      : CONFIG.motion;
+
+    const sizeVariance = rand(0.5, 1.6);
+    const sz = CONFIG.size * sizeVariance;
+
+    const el = document.createElement('div');
+    el.className = 'creature';
+    el.style.width  = sz + 'px';
+    el.style.height = sz + 'px';
+
+    const img = document.createElement('img');
+    img.src = blobUrl;
+    img.draggable = false;
+    el.appendChild(img);
+    scene.appendChild(el);
+
+    if (Math.random() < 0.5) img.style.transform = 'scaleX(-1)';
+
+    creatures.push({
+      el,
+      x: rand(0, W), y: rand(0, H),
+      z: rand(-CONFIG.depth, CONFIG.depth * 0.5),
+      vx: rand(-1, 1), vy: rand(-1, 1), vz: rand(-0.4, 0.4),
+      t: rand(0, TAU),
+      wobbleAmp:  motionType === 'jellyfish' ? rand(0.3, 1.2) : rand(1.5, 4),
+      wobbleFreq: motionType === 'jellyfish' ? rand(0.3, 0.8) : rand(1.2, 3.0),
+      rotX: rand(-30, 30), rotY: rand(-45, 45), rotZ: rand(-20, 20),
+      dRotX: rand(-0.3, 0.3), dRotY: rand(-0.5, 0.5), dRotZ: rand(-0.2, 0.2),
+      sz, motionType,
+      speedMult: rand(0.5, 1.5),
+      driftX: rand(-0.5, 0.5),
+      driftY: motionType === 'jellyfish' ? rand(-0.3, -0.8) : rand(-1, 1),
+      opacity: rand(0.85, 1.0),
+    });
+  }
+}
+
+// ── main loop ────────────────────────────────────────────────────────────────
+function loop() {
+  if (!running) return;
+  const W = window.innerWidth, H = window.innerHeight;
+  const spd = CONFIG.speed * 0.4;
+
+  for (const c of creatures) {
+    c.t += 0.016;
+
+    if (c.motionType === 'butterfly') {
+      const ax = Math.sin(c.t * c.wobbleFreq) * c.wobbleAmp
+               + Math.sin(c.t * c.wobbleFreq * 2.3 + 1.7) * c.wobbleAmp * 0.4;
+      const ay = Math.cos(c.t * c.wobbleFreq * 0.9 + 0.5) * c.wobbleAmp
+               + Math.cos(c.t * c.wobbleFreq * 1.8 + 2.1) * c.wobbleAmp * 0.3;
+      c.vx += ax * 0.04 * spd * c.speedMult;
+      c.vy += ay * 0.04 * spd * c.speedMult;
+      c.vx *= 0.97; c.vy *= 0.97;
+      if (Math.random() < 0.015) c.vx += rand(-3, 3) * spd * c.speedMult;
+      if (Math.random() < 0.015) c.vy += rand(-3, 3) * spd * c.speedMult;
+    } else {
+      const pulse = Math.sin(c.t * c.wobbleFreq) * c.wobbleAmp;
+      c.vx = c.driftX * spd * c.speedMult + Math.sin(c.t * 0.4) * 0.8 * spd;
+      c.vy = c.driftY * spd * c.speedMult + Math.cos(c.t * 0.5) * 0.6 * spd + pulse * 0.15;
+    }
+
+    c.vz += Math.sin(c.t * 0.3) * 0.05;
+    c.vz *= 0.98;
+    c.z  += c.vz * spd * c.speedMult;
+    c.z   = clamp(c.z, -CONFIG.depth, CONFIG.depth * 0.8);
+    c.x  += c.vx; c.y += c.vy;
+
+    const margin = c.sz;
+    if (c.x >  W + margin) c.x = -margin;
+    if (c.x < -margin)     c.x =  W + margin;
+    if (c.y >  H + margin) c.y = -margin;
+    if (c.y < -margin)     c.y =  H + margin;
+
+    c.rotX += c.dRotX * (c.motionType === 'jellyfish' ? 0.3 : 1);
+    c.rotY += c.dRotY;
+    c.rotZ += c.dRotZ * (c.motionType === 'jellyfish' ? 0.4 : 1);
+
+    const fov   = 900;
+    const scale = fov / (fov - c.z);
+    const px    = (c.x - W / 2) * scale + W / 2;
+    const py    = (c.y - H / 2) * scale + H / 2;
+
+    const depthRatio = (c.z + CONFIG.depth) / (CONFIG.depth * 1.8);
+    const alpha  = clamp(c.opacity * (0.75 + depthRatio * 0.25), 0.6, 1);
+    const bright = 0.9 + depthRatio * 0.25;
+
+    c.el.style.transform =
+      `translate(${px - c.sz / 2}px, ${py - c.sz / 2}px) ` +
+      `scale(${scale * (c.sz / CONFIG.size)}) ` +
+      `rotateX(${c.rotX}deg) rotateY(${c.rotY}deg) rotateZ(${c.rotZ}deg)`;
+    c.el.style.opacity = alpha;
+    c.el.style.filter  =
+      `drop-shadow(0 0 ${8 * depthRatio}px rgba(180,220,255,${0.2 * depthRatio})) ` +
+      `brightness(${bright})`;
+    c.el.style.zIndex = Math.round(depthRatio * 100);
+  }
+
+  animFrame = requestAnimationFrame(loop);
+}
+
+window.addEventListener('resize', () => { if (running) spawnCreatures(); });
+</script>
+</body>
+</html>

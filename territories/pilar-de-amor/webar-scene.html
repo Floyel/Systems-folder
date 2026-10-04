@@ -1,0 +1,1354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+  <title>Symbol by Flōyél</title>
+  <script src="scene-config.js" onerror="window._configError=true"></script>
+  <script src="aframe.min.js" onerror="window._aframeError=true"></script>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;}
+    body{background:#000;overflow:hidden;height:100dvh;font-family:'Courier New',monospace;}
+
+    #permission-screen{position:fixed;inset:0;z-index:99999;display:flex;flex-direction:column;align-items:center;justify-content:center;background:#0a0a0a;padding:48px 36px;text-align:center;transition:opacity .5s ease;}
+    #permission-screen.fade-out{opacity:0;pointer-events:none;}
+
+    /* Flōyél wordmark — top */
+    .perm-wordmark{font-size:.65rem;letter-spacing:.35em;color:rgba(255,255,255,.25);text-transform:uppercase;margin-bottom:8px;}
+
+    /* Territory label */
+    .perm-territory-label{font-size:.55rem;letter-spacing:.3em;color:#c8a96e;text-transform:uppercase;margin-bottom:20px;}
+
+    /* Territory name — large, accent colour */
+    .perm-name{font-size:clamp(1.4rem,7vw,2.2rem);letter-spacing:.12em;text-transform:uppercase;color:#e8d5b0;line-height:1.2;margin-bottom:32px;max-width:300px;}
+
+    /* Divider */
+    .perm-divider{width:32px;height:1px;background:rgba(255,255,255,.15);margin:0 auto 32px;}
+
+    /* Description */
+    .perm-description{font-size:.68rem;letter-spacing:.06em;line-height:1.9;color:rgba(255,255,255,.45);max-width:260px;margin-bottom:48px;}
+
+    /* Camera note */
+    .perm-note{font-size:.55rem;letter-spacing:.08em;line-height:1.8;color:rgba(255,255,255,.18);max-width:240px;margin-bottom:36px;}
+
+    /* Launch button */
+    #perm-btn{background:transparent;border:1px solid #c8a96e;color:#c8a96e;font-family:'Courier New',monospace;font-size:.65rem;letter-spacing:.25em;text-transform:uppercase;padding:14px 48px;cursor:pointer;transition:background .2s,color .2s;}
+    #perm-btn:hover{background:rgba(200,169,110,.08);}
+    #perm-btn:active{background:rgba(200,169,110,.15);}
+
+    /* Error */
+    #perm-error{margin-top:20px;font-size:.6rem;letter-spacing:.08em;color:#e08080;display:none;line-height:1.8;max-width:280px;}
+
+    #desktop-msg{position:fixed;inset:0;z-index:9998;display:none;flex-direction:column;align-items:center;justify-content:center;background:#000;gap:16px;padding:40px;text-align:center;}
+    #desktop-msg h2{color:#fff;font-size:1rem;letter-spacing:.2em;text-transform:uppercase;}
+    #desktop-msg p{color:#555;font-size:.72rem;letter-spacing:.1em;line-height:1.8;}
+    #desktop-msg code{color:#888;background:#111;padding:2px 8px;border-radius:2px;}
+
+    #loading{position:fixed;inset:0;z-index:9997;display:none;flex-direction:column;align-items:center;justify-content:center;background:#000;gap:18px;transition:opacity .6s ease;}
+    #loading.visible{display:flex;}
+    #loading.fade-out{opacity:0;pointer-events:none;}
+    .load-title{font-size:clamp(1.2rem,5vw,2rem);letter-spacing:.25em;text-transform:uppercase;color:#fff;}
+    .load-sub{font-size:.75rem;letter-spacing:.12em;color:#666;text-transform:uppercase;text-align:center;padding:0 20px;}
+    .load-ring{width:52px;height:52px;border:2px solid #222;border-top-color:#fff;border-radius:50%;animation:spin-anim 1s linear infinite;}
+    @keyframes spin-anim{to{transform:rotate(360deg);}}
+
+    #ar-canvas{position:fixed;inset:0;z-index:1;display:none;}
+    #ar-canvas.visible{display:block;}
+
+    #hud{position:fixed;bottom:0;left:0;right:0;z-index:100;padding:20px 24px 32px;background:linear-gradient(to top,rgba(0,0,0,.9) 0%,rgba(0,0,0,.4) 70%,transparent 100%);display:none;align-items:center;justify-content:center;pointer-events:none;flex-direction:column;gap:6px;}
+    #hud.visible{display:flex;}
+    #hud-text{font-size:.75rem;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.9);text-align:center;text-shadow:0 1px 8px rgba(0,0,0,.8);}
+    #hud-sub{font-size:.55rem;letter-spacing:.1em;color:rgba(255,255,255,.4);text-align:center;display:none;}
+    #hud-sub.visible{display:block;}
+
+    #place-btn{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:100;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.25);color:#fff;font-family:'Courier New',monospace;font-size:.7rem;letter-spacing:.2em;text-transform:uppercase;padding:12px 32px;border-radius:2px;cursor:pointer;backdrop-filter:blur(6px);display:none;}
+    #place-btn.visible{display:block;}
+    #reset-btn{position:fixed;top:20px;right:20px;z-index:100;background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.5);font-family:'Courier New',monospace;font-size:.6rem;letter-spacing:.15em;text-transform:uppercase;padding:8px 16px;border-radius:2px;cursor:pointer;display:none;}
+    #reset-btn.visible{display:block;}
+  </style>
+</head>
+<body>
+
+<div id="permission-screen">
+  <div class="perm-wordmark">Flōyél</div>
+  <div class="perm-territory-label">Territory</div>
+  <div class="perm-name" id="perm-territory-name">—</div>
+  <div class="perm-divider"></div>
+  <div class="perm-description" id="perm-territory-desc"></div>
+  <div class="perm-note">
+    Camera access is required to enter.<br>
+    Your camera is never recorded or stored.<br>
+    Permission is only active while this page is open.
+  </div>
+  <button id="perm-btn">Launch</button>
+  <div id="perm-error"></div>
+</div>
+
+<div id="desktop-msg">
+  <h2>Mobile Only</h2>
+  <p>This AR experience requires a phone camera.<br><br>
+  For desktop preview open <code>editor.html</code> instead.</p>
+</div>
+
+<div id="loading">
+  <div class="load-ring"></div>
+  <div class="load-title">Flōyél</div>
+  <div class="load-sub">Starting…</div>
+</div>
+
+<canvas id="ar-canvas"></canvas>
+<div id="hud"><span id="hud-text">Move camera slowly over a flat surface</span><span id="hud-sub">Tap to place when the marker appears</span></div>
+<button id="place-btn">TAP TO PLACE</button>
+<button id="reset-btn">RESET</button>
+
+<script>
+// ── Global error catcher ──────────────────────────────────────────
+window.onerror = function(msg, src, line) {
+  document.body.style.background = '#000';
+  document.body.innerHTML = `<div style="color:#e08080;font-family:monospace;font-size:.7rem;padding:40px;line-height:2;">Error: ${msg}<br>Line: ${line}<br>File: ${src}</div>`;
+  return true;
+};
+
+// ── Config guard ──────────────────────────────────────────────────
+if (window._configError || typeof SCENE_CONFIG === 'undefined') {
+  document.getElementById('permission-screen').style.display = 'none';
+  const l = document.getElementById('loading');
+  l.classList.add('visible');
+  l.querySelector('.load-sub').textContent = 'scene-config.js not found.';
+  l.querySelector('.load-sub').style.color = '#e08080';
+  l.querySelector('.load-ring').style.display = 'none';
+  throw new Error('SCENE_CONFIG not defined');
+}
+
+// Warn if not HTTPS but don't redirect — let the page load and show the error
+if (location.protocol === 'http:' && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
+  document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('permission-screen').style.display = 'flex';
+    const err = document.getElementById('perm-error');
+    err.textContent = `This page requires HTTPS. Current URL is HTTP. Open: https://${location.hostname}${location.pathname}`;
+    err.style.display = 'block';
+    document.getElementById('perm-btn').style.display = 'none';
+  });
+}
+
+const OBJECTS  = SCENE_CONFIG.objects;
+const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || navigator.maxTouchPoints > 1;
+
+// Populate territory info from config
+const territory = SCENE_CONFIG.territory || {};
+const nameEl = document.getElementById('perm-territory-name');
+const descEl = document.getElementById('perm-territory-desc');
+if(nameEl) nameEl.textContent = territory.name || 'Unnamed Territory';
+if(descEl) descEl.textContent = territory.description || '';
+
+if (!isMobile) {
+  document.getElementById('permission-screen').style.display = 'none';
+  document.getElementById('desktop-msg').style.display = 'flex';
+} else {
+  initPermissionScreen();
+}
+
+// ── Permission screen ─────────────────────────────────────────────
+function initPermissionScreen() {
+  const permScreen = document.getElementById('permission-screen');
+  const permBtn    = document.getElementById('perm-btn');
+  const permError  = document.getElementById('perm-error');
+
+  permBtn.addEventListener('click', async () => {
+    permBtn.textContent = 'Opening…';
+    permBtn.disabled = true;
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      permBtn.textContent = 'Allow camera';
+      permBtn.disabled = false;
+      permError.textContent = 'Camera not available. Make sure URL starts with https://';
+      permError.style.display = 'block';
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      });
+      permScreen.classList.add('fade-out');
+      setTimeout(() => { permScreen.style.display = 'none'; }, 500);
+      document.getElementById('loading').classList.add('visible');
+      document.querySelector('#loading .load-sub').textContent = 'Initialising…';
+      startAR(stream);
+    } catch(err) {
+      permBtn.textContent = 'Allow camera';
+      permBtn.disabled = false;
+      if (err.name === 'NotAllowedError') {
+        permError.textContent = 'Camera denied. Go to Settings → Apps → Chrome → Permissions → Camera → Allow, then reload.';
+      } else if (err.name === 'NotFoundError') {
+        permError.textContent = 'No camera found on this device.';
+      } else if (err.name === 'NotReadableError') {
+        permError.textContent = 'Camera in use by another app. Close other apps and try again.';
+      } else {
+        permError.textContent = `Camera error (${err.name}): ${err.message}`;
+      }
+      permError.style.display = 'block';
+    }
+  });
+}
+
+// ── Easing ────────────────────────────────────────────────────────
+const Ease = {
+  none:      t => t,
+  sine:      t => -(Math.cos(Math.PI*t)-1)/2,
+  quadIn:    t => t*t,
+  quadOut:   t => 1-(1-t)*(1-t),
+  quad:      t => t<0.5?2*t*t:1-Math.pow(-2*t+2,2)/2,
+  cubicIn:   t => t*t*t,
+  cubicOut:  t => 1-Math.pow(1-t,3),
+  cubic:     t => t<0.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2,
+  quartIn:   t => t*t*t*t,
+  quartOut:  t => 1-Math.pow(1-t,4),
+  quart:     t => t<0.5?8*t*t*t*t:1-Math.pow(-2*t+2,4)/2,
+  expoIn:    t => t===0?0:Math.pow(2,10*t-10),
+  expoOut:   t => t===1?1:1-Math.pow(2,-10*t),
+  expo:      t => t===0?0:t===1?1:t<0.5?Math.pow(2,20*t-10)/2:(2-Math.pow(2,-20*t+10))/2,
+  circIn:    t => 1-Math.sqrt(1-t*t),
+  circOut:   t => Math.sqrt(1-(t-1)*(t-1)),
+  circ:      t => t<0.5?(1-Math.sqrt(1-4*t*t))/2:(Math.sqrt(1-(-2*t+2)*(-2*t+2))+1)/2,
+  backIn:    t => { const c=1.70158; return (c+1)*t*t*t-c*t*t; },
+  backOut:   t => { const c=1.70158; return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2); },
+  back:      t => { const c=1.70158,c2=c*1.525; return t<0.5?(Math.pow(2*t,2)*((c2+1)*2*t-c2))/2:(Math.pow(2*t-2,2)*((c2+1)*(2*t-2)+c2)+2)/2; },
+  elasticIn: t => { if(t===0||t===1)return t; const c=(2*Math.PI)/3; return -Math.pow(2,10*t-10)*Math.sin((t*10-10.75)*c); },
+  elasticOut:t => { if(t===0||t===1)return t; const c=(2*Math.PI)/3; return Math.pow(2,-10*t)*Math.sin((t*10-0.75)*c)+1; },
+  elastic:   t => { if(t===0||t===1)return t; const c4=(2*Math.PI)/3; return t<0.5?-(Math.pow(2,20*t-10)*Math.sin((20*t-11.125)*c4))/2:(Math.pow(2,-20*t+10)*Math.sin((20*t-11.125)*c4))/2+1; },
+  bounceOut: t => { const n1=7.5625,d1=2.75; if(t<1/d1)return n1*t*t; else if(t<2/d1)return n1*(t-=1.5/d1)*t+0.75; else if(t<2.5/d1)return n1*(t-=2.25/d1)*t+0.9375; else return n1*(t-=2.625/d1)*t+0.984375; },
+  bounceIn:  t => 1-Ease.bounceOut(1-t),
+  bounce:    t => t<0.5?(1-Ease.bounceOut(1-2*t))/2:(1+Ease.bounceOut(2*t-1))/2,
+};
+function easedOsc(t,fn){ const h=(t%1)*2; return h<=1?fn(h)*2-1:fn(2-h)*2-1; }
+
+function computeSpinRad(m,s,phase){
+  if(!s.started||s.pausing) return s.lastSpinRad||0;
+  const deg=m.degrees||360,dir=Number(m.direction)||1;
+  const freq=m.duration?(1/m.duration):(m.speed||0.5);
+  const fn=Ease[m.ease]||Ease.none;
+  const t=(s.elapsed||0)+phase,cycle=(t*freq)%1;
+  const frac=(deg>=359.9)?cycle:(m.mode==='step'?(s.cyclesDone||0)+fn(cycle):(easedOsc(t*freq,fn)+1)/2);
+  return THREE.MathUtils.degToRad(frac*deg*dir);
+}
+
+function applyHeld(m,s,addVec,mulScale,addSpin){
+  switch(m.type){
+    case 'float': case 'drift': case 'orbit': if(s.lastVec) addVec(s.lastVec); break;
+    case 'spin': if(s.lastSpinRad!==undefined) addSpin(s.lastSpinRad,s.lastSpinAxis||m.axis); break;
+    case 'breathe': if(s.lastScale!==undefined) mulScale(s.lastScale); break;
+  }
+}
+
+// ── GIF texture loader ────────────────────────────────────────────
+const textureCache={};
+let sharedSymbols = false;  // set to true if server confirms shared symbols/ exists
+let missingAssets = 0;      // count of assets that failed to load
+
+// Check if running via hub server with shared symbols folder
+fetch('/api/config', { signal: AbortSignal.timeout(1500) })
+  .then(r => r.json())
+  .then(cfg => { if(cfg.sharedSymbols) sharedSymbols = true; })
+  .catch(() => {}); // no server — standalone mode, use local symbols/
+
+function resolveSrc(src) {
+  if(sharedSymbols && !src.startsWith('http')) {
+    // Strip any path prefix and serve from shared /symbols/ at root
+    const filename = src.replace(/^(\.\.\/)*symbols\//, '');
+    return '/symbols/' + filename.split('/').map(s=>encodeURIComponent(s)).join('/');
+  }
+  return safeSrc(src);
+}
+
+function showMissingAssetNotice() {
+  const existing = document.getElementById('missing-asset-notice');
+  if(existing) return;
+  const notice = document.createElement('div');
+  notice.id = 'missing-asset-notice';
+  notice.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99998;background:rgba(0,0,0,.85);color:rgba(255,255,255,.55);font-family:Courier New,monospace;font-size:.6rem;letter-spacing:.08em;line-height:1.8;padding:12px 20px;text-align:center;';
+  notice.textContent = 'Some symbols couldn\'t be found. For the complete experience, use the full Flōyél folder with the hub launcher.';
+  document.body.appendChild(notice);
+}
+
+
+let gifuctReady=false;
+window.addEventListener('gifuct-ready',()=>{gifuctReady=true;});
+(function(){
+  const s=document.createElement('script');
+  s.type='module';
+  s.textContent=`import{parseGIF,decompressFrames}from'https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/+esm';window.GifuctJS={parseGIF,decompressFrames};window.dispatchEvent(new Event('gifuct-ready'));`;
+  document.head.appendChild(s);
+})();
+function safeSrc(src){
+  if(src.startsWith('http')) return src;
+  return src.split('/').map(s=>encodeURIComponent(s)).join('/');
+}
+
+function buildTexture(src,onReady){
+  if(textureCache[src]){onReady(textureCache[src]);return;}
+  const canvas=document.createElement('canvas'),ctx=canvas.getContext('2d');
+  canvas.width=canvas.height=128;
+  for(let y=0;y<8;y++) for(let x=0;x<8;x++){ctx.fillStyle=(x+y)%2===0?'#333':'#222';ctx.fillRect(x*16,y*16,16,16);}
+  const tex=new THREE.CanvasTexture(canvas);
+  tex.minFilter=THREE.LinearFilter;
+  textureCache[src]=tex;
+  onReady(tex);
+  const url=resolveSrc(src),isGif=/\.gif(\?|$)/i.test(src);
+  function decodeGif(){
+    fetch(url).then(r=>{if(!r.ok)throw new Error('fetch failed');return r.arrayBuffer();}).then(buf=>{
+      const gif=window.GifuctJS.parseGIF(buf),frames=window.GifuctJS.decompressFrames(gif,true);
+      if(!frames.length)return;
+      let w=frames[0].dims.width,h=frames[0].dims.height;
+      // Downscale large GIFs — max 512px on longest side for AR performance
+      const MAX_SIZE=512;
+      const scale=Math.min(1, MAX_SIZE/Math.max(w,h));
+      w=Math.round(w*scale); h=Math.round(h*scale);
+      canvas.width=w;canvas.height=h;
+      // Composite canvases at original GIF resolution, output canvas at scaled size
+      const origW=frames[0].dims.width,origH=frames[0].dims.height;
+      const cc=document.createElement('canvas');cc.width=origW;cc.height=origH;
+      const cctx=cc.getContext('2d');
+      const pc=document.createElement('canvas');pc.width=origW;pc.height=origH;
+      const pctx=pc.getContext('2d');
+      let idx=0,lastTime=performance.now();
+      function rf(){
+        const f=frames[idx],fd=f.dims;
+        pctx.clearRect(0,0,w,h);pctx.drawImage(cc,0,0);
+        const patch=f.patch;
+        const existing=cctx.getImageData(fd.left,fd.top,fd.width,fd.height);
+        const merged=new Uint8ClampedArray(fd.width*fd.height*4);
+        for(let p=0;p<merged.length;p+=4){
+          if(patch[p+3]===0){merged[p]=existing.data[p];merged[p+1]=existing.data[p+1];merged[p+2]=existing.data[p+2];merged[p+3]=existing.data[p+3];}
+          else{merged[p]=patch[p];merged[p+1]=patch[p+1];merged[p+2]=patch[p+2];merged[p+3]=patch[p+3];}
+        }
+        const id=cctx.createImageData(fd.width,fd.height);
+        id.data.set(merged);cctx.putImageData(id,fd.left,fd.top);
+        ctx.clearRect(0,0,w,h);ctx.drawImage(cc,0,0,origW,origH,0,0,w,h);tex.needsUpdate=true;
+        const d=f.disposalType;
+        if(d===2)cctx.clearRect(fd.left,fd.top,fd.width,fd.height);
+        else if(d===3){cctx.clearRect(0,0,w,h);cctx.drawImage(pc,0,0);}
+      }
+      rf();
+      let gifPlaying = true;
+      let gifCyclesDone = 0;
+      let gifMaxCycles = null; // null = infinite
+
+      function step(){
+        if(!gifPlaying) return;
+        const d=Math.max(frames[idx].delay||100,50);
+        setTimeout(()=>{
+          if(!gifPlaying) return;
+          const prevIdx = idx;
+          idx=(idx+1)%frames.length;
+          // Count completed cycles
+          if(idx === 0) {
+            gifCyclesDone++;
+            if(gifMaxCycles !== null && gifCyclesDone >= gifMaxCycles) {
+              gifPlaying = false;
+              return;
+            }
+          }
+          rf();
+          step();
+        },d);
+      }
+
+      // Attach controls to texture object for external use
+      tex._gifFrames = frames.length;
+      tex._gifPlay = (cycles) => {
+        gifMaxCycles = (cycles !== undefined && cycles !== null) ? cycles : null;
+        gifCyclesDone = 0;
+        if(!gifPlaying){ gifPlaying=true; step(); }
+      };
+      tex._gifPause = () => { gifPlaying = false; };
+      tex._gifReset = () => { idx=0; gifCyclesDone=0; rf(); };
+
+      // Start paused by default — gifPlay motion behaviour starts it
+      // (tex._gifPlay will be called by the motion tick when needed)
+    }).catch(()=>{
+      // GIF fetch failed — try as plain image, show notice if that also fails
+      const i=new Image();i.crossOrigin='anonymous';
+      i.onload=()=>{canvas.width=i.naturalWidth||256;canvas.height=i.naturalHeight||256;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(i,0,0);tex.needsUpdate=true;
+        // img fallback can't animate frames but set stub so gifPlay motion doesn't break
+        if(!tex._gifPlay) { tex._gifPlay=()=>{}; tex._gifPause=()=>{}; tex._gifReset=()=>{}; }
+      };
+      i.onerror=()=>{ missingAssets++; showMissingAssetNotice(); };
+      i.src=url;
+    });
+  }
+  if(!isGif){
+    const i=new Image();i.crossOrigin='anonymous';
+    i.onload=()=>{canvas.width=i.naturalWidth||256;canvas.height=i.naturalHeight||256;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(i,0,0);tex.needsUpdate=true;};
+    i.onerror=()=>{ missingAssets++; showMissingAssetNotice(); };
+    i.src=url;
+  } else if(gifuctReady){
+    decodeGif();
+  } else {
+    window.addEventListener('gifuct-ready',decodeGif,{once:true});
+    // Safety timeout — if gifuct never loads, try img fallback
+    setTimeout(()=>{ if(!gifuctReady && !textureCache[src+'_loaded']) {
+      const fi=new Image(); fi.crossOrigin='anonymous';
+      fi.onload=()=>{canvas.width=fi.naturalWidth||256;canvas.height=fi.naturalHeight||256;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(fi,0,0);tex.needsUpdate=true;textureCache[src+'_loaded']=true;
+        // Can't animate via img — set stubs so gifPlay motion doesn't silently fail
+        if(!tex._gifPlay) { tex._gifPlay=()=>{}; tex._gifPause=()=>{}; tex._gifReset=()=>{}; }
+      };
+      fi.src=url;
+    }}, 2000);
+  }
+}
+
+// ── Motion tick ───────────────────────────────────────────────────
+function tickMesh(p,dt,cam){
+  const{mesh,obj,origin,phase,state}=p;
+  p.t+=dt;
+  let px=origin.x,py=origin.y,pz=origin.z,sx=1,sy=1,sz=1,spinX=0,spinY=0,spinZ=0;
+  const motions=(obj.onStart||obj.motion||[]);
+
+  // Pre-calc spin for move curve
+  const ts={x:0,y:0,z:0};
+  for(let i=0;i<motions.length;i++){
+    const m=motions[i],s=state[i];
+    if(m.type!=='spin'||!s) continue;
+    const rad=computeSpinRad(m,s,phase);
+    if(m.axis==='y')ts.y+=rad;else if(m.axis==='x')ts.x+=rad;else ts.z+=rad;
+  }
+  const spinQuat=new THREE.Quaternion().setFromEuler(new THREE.Euler(ts.x,ts.y,ts.z,'XYZ'));
+
+  // Move
+  for(let i=0;i<motions.length;i++){
+    const m=motions[i],s=state[i];
+    if(m.type!=='move') continue;
+    if(!s.started){s.delayTimer+=dt;if(s.delayTimer<(m.delay||0))continue;s.started=true;}
+    if(s.pausing){s.pauseTimer+=dt;if(s.pauseTimer<(m.pause||0))continue;s.pausing=false;s.pauseTimer=0;}
+    if(m.cycles&&m.cycles>0&&s.cyclesDone>=m.cycles) continue;
+    const dir=Number(m.direction)||1,spd=m.speed||0.05;
+    let easeMult=1;
+    if(m.ease&&m.ease!=='none'&&m.duration&&m.duration>0){
+      const eFn=Ease[m.ease]||Ease.none;
+      const prog=Math.min(s.elapsed/m.duration,1);
+      easeMult=Math.max((eFn(Math.min(prog+0.01,1))-eFn(Math.max(prog-0.01,0)))/0.02,0.05);
+    }
+    if(m.duration&&m.duration>0){
+      s.elapsed+=dt;
+      if(s.elapsed>=m.duration){s.cyclesDone++;s.elapsed=0;if(m.pause&&m.pause>0){s.pausing=true;s.pauseTimer=0;}continue;}
+    }
+    const mv=new THREE.Vector3(m.axis==='x'?spd*dir*easeMult*dt:0,m.axis==='y'?spd*dir*easeMult*dt:0,m.axis==='z'?spd*dir*easeMult*dt:0);
+    // Use mesh's actual world quaternion so move is truly object-relative
+    const worldQ = new THREE.Quaternion();
+    mesh.getWorldQuaternion(worldQ);
+    mv.applyQuaternion(worldQ);
+    s.moveOffset.add(mv);
+  }
+  for(let i=0;i<motions.length;i++){
+    if(motions[i].type==='move'){px+=state[i].moveOffset.x;py+=state[i].moveOffset.y;pz+=state[i].moveOffset.z;}
+  }
+
+  // Oscillating motions
+  for(let i=0;i<motions.length;i++){
+    const m=motions[i],s=state[i];
+    if(m.type==='move') continue;
+    if(m.type==='gifPlay'){
+      if(!s._gifStarted){
+        s._gifDelay=(s._gifDelay||0)+dt;
+        if((m.delay||0)>0&&s._gifDelay<m.delay) continue;
+        if(p.tex?._gifPlay){const cycles=m.loop===false?(m.cycles||1):null;p.tex._gifPlay(cycles);}
+        s._gifStarted=true;
+      }
+      continue;
+    }
+    if(!s.started){s.delayTimer+=dt;if(s.delayTimer<(m.delay||0))continue;s.started=true;}
+    if(s.pausing){
+      s.pauseTimer+=dt;
+      if(s.pauseTimer<(m.pause||0)){
+        applyHeld(m,s,(v)=>{px+=v.x;py+=v.y;pz+=v.z;},(sc)=>{sx*=sc;sy*=sc;sz*=sc;},(rad,axis)=>{if(axis==='y')spinY+=rad;else if(axis==='x')spinX+=rad;else spinZ+=rad;});
+        continue;
+      }
+      s.pausing=false;s.pauseTimer=0;
+    }
+    if(m.cycles&&m.cycles>0&&s.cyclesDone>=m.cycles){
+      applyHeld(m,s,(v)=>{px+=v.x;py+=v.y;pz+=v.z;},(sc)=>{sx*=sc;sy*=sc;sz*=sc;},(rad,axis)=>{if(axis==='y')spinY+=rad;else if(axis==='x')spinX+=rad;else spinZ+=rad;});
+      continue;
+    }
+    s.elapsed+=dt;
+    const freq=m.duration?(1/m.duration):(m.speed||0.5),fn=Ease[m.ease]||Ease.sine;
+    const prev=Math.floor((s.elapsed-dt)*freq),curr=Math.floor(s.elapsed*freq);
+    if(curr>prev){s.cyclesDone++;if(m.pause&&m.pause>0){s.pausing=true;s.pauseTimer=0;}}
+    const t=s.elapsed+phase,cycle=(t*freq)%1,dir=Number(m.direction)||1;
+    switch(m.type){
+      case 'float':{
+        const v=easedOsc(t*freq,fn)*m.amp*dir;
+        // Apply relative to object orientation
+        const ax=m.axis||'y'; const localUp=new THREE.Vector3(ax==='x'?v:0,ax==='y'?v:0,ax==='z'?v:0).applyQuaternion(spinQuat);
+        px+=localUp.x;py+=localUp.y;pz+=localUp.z;
+        s.lastVec={x:localUp.x,y:localUp.y,z:localUp.z};
+        break;
+      }
+      case 'drift':{
+        const off=easedOsc(t*freq,fn)*m.amp*dir;
+        const dv=m.axis==='x'?new THREE.Vector3(off,0,0):m.axis==='y'?new THREE.Vector3(0,off,0):new THREE.Vector3(0,0,off);
+        dv.applyQuaternion(spinQuat);
+        px+=dv.x;py+=dv.y;pz+=dv.z;
+        s.lastVec={x:dv.x,y:dv.y,z:dv.z};
+        break;
+      }
+      case 'orbit':{const angle=fn(cycle)*Math.PI*2*dir,r=m.radius||0.2;let ox=0,oy=0,oz=0;if(m.axis==='y'){ox=Math.cos(angle)*r;oz=Math.sin(angle)*r;}else if(m.axis==='x'){oy=Math.cos(angle)*r;oz=Math.sin(angle)*r;}else{ox=Math.cos(angle)*r;oy=Math.sin(angle)*r;}px+=ox;py+=oy;pz+=oz;s.lastVec={x:ox,y:oy,z:oz};break;}
+      case 'spin':{const rad=computeSpinRad(m,s,phase);if(m.axis==='y')spinY+=rad;else if(m.axis==='x')spinX+=rad;else spinZ+=rad;s.lastSpinRad=rad;s.lastSpinAxis=m.axis;break;}
+      case 'breathe':{const sc=1+easedOsc(t*freq,fn)*m.amp;sx*=sc;sy*=sc;sz*=sc;s.lastScale=sc;break;}
+      case 'rotate':{
+        const loop = m.loop === true || m.loop === 'true';
+        const dur  = m.duration || 2;
+        const hold = m.hold || 0;
+        const totalCycle = dur + hold;
+        const fnR = Ease[m.ease]||Ease.sine;
+
+        // Accumulate completed cycles as permanent rotation offset
+        if(!s.rotateAccum) s.rotateAccum = {x:0, y:0, z:0};
+
+        const cycleElapsed = s.elapsed % totalCycle;
+        const completedCycles = Math.floor(s.elapsed / totalCycle);
+
+        // Detect when a new cycle completes and add to accumulator
+        if(completedCycles > (s.lastRotateCycle||0)) {
+          const newCycles = completedCycles - (s.lastRotateCycle||0);
+          s.rotateAccum.x += THREE.MathUtils.degToRad((m.degreesX||0)) * newCycles;
+          s.rotateAccum.y += THREE.MathUtils.degToRad((m.degreesY||0)) * newCycles;
+          s.rotateAccum.z += THREE.MathUtils.degToRad((m.degreesZ||0)) * newCycles;
+          s.lastRotateCycle = completedCycles;
+        }
+
+        const inHold = cycleElapsed > dur;
+        const progress = inHold ? 1 : Math.min(fnR(cycleElapsed/dur), 1);
+
+        // Current cycle's progress on top of accumulated past cycles
+        const rx = s.rotateAccum.x + THREE.MathUtils.degToRad((m.degreesX||0) * progress);
+        const ry = s.rotateAccum.y + THREE.MathUtils.degToRad((m.degreesY||0) * progress);
+        const rz = s.rotateAccum.z + THREE.MathUtils.degToRad((m.degreesZ||0) * progress);
+        spinX+=rx; spinY+=ry; spinZ+=rz;
+        s.lastSpinRad=ry; s.lastSpinAxis='y';
+        break;
+      }
+    }
+  }
+  mesh.position.set(px,py,pz);
+  mesh.scale.set(sx,sy,sz);
+  // Add starting rotation as base offset
+  const baseX=obj.rotation?THREE.MathUtils.degToRad(obj.rotation.x||0):0;
+  const baseY=obj.rotation?THREE.MathUtils.degToRad(obj.rotation.y||0):0;
+  const baseZ=obj.rotation?THREE.MathUtils.degToRad(obj.rotation.z||0):0;
+  if(obj.billboard){mesh.lookAt(cam.position);if(spinX||baseX)mesh.rotateX(spinX+baseX);if(spinY||baseY)mesh.rotateY(spinY+baseY);if(spinZ||baseZ)mesh.rotateZ(spinZ+baseZ);}
+  else{mesh.rotation.set(baseX+spinX,baseY+spinY,baseZ+spinZ);}
+}
+
+// Deterministic phase from object id — same every load, different per object
+function seededPhase(id) {
+  let h = 0;
+  for(let i = 0; i < (id||'').length; i++) {
+    h = Math.imul(31, h) + (id||'').charCodeAt(i) | 0;
+  }
+  return (Math.abs(h) % 1000) / 100; // 0–10
+}
+
+// ── AR scene ──────────────────────────────────────────────────────
+async function startAR(cameraStream) {
+  const canvas   = document.getElementById('ar-canvas');
+  const loading  = document.getElementById('loading');
+  const loadSub  = loading.querySelector('.load-sub');
+  const hud      = document.getElementById('hud');
+  const hudText  = document.getElementById('hud-text');
+  const hudSub   = document.getElementById('hud-sub');
+  const placeBtn = document.getElementById('place-btn');
+  const resetBtn = document.getElementById('reset-btn');
+
+  // ── Renderer ────────────────────────────────────────────────────
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:false, alpha:true, powerPreference:"high-performance" });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000000, 0);
+  renderer.autoClear = false;
+
+  const scene  = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(70, window.innerWidth/window.innerHeight, 0.01, 100);
+  scene.add(new THREE.AmbientLight(0xffffff, 1.5));
+
+  // ── Video background ────────────────────────────────────────────
+  const video = document.createElement('video');
+  video.srcObject = cameraStream;
+  video.setAttribute('playsinline','');
+  video.setAttribute('autoplay','');
+  video.muted = true;
+  await video.play().catch(()=>{});
+
+  const videoTex = new THREE.VideoTexture(video);
+  videoTex.minFilter = THREE.LinearFilter;
+  const bgScene = new THREE.Scene();
+  const bgCam   = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+  bgScene.add(new THREE.Mesh(
+    new THREE.PlaneGeometry(2,2),
+    new THREE.MeshBasicMaterial({map:videoTex,depthTest:false,depthWrite:false})
+  ));
+
+  // ── Scene objects ───────────────────────────────────────────────
+  const anchorGroup = new THREE.Group();
+  anchorGroup.visible = false;
+  scene.add(anchorGroup);
+
+  // Reticle (ring + dot)
+  // ── Surface indicator — grid mesh + ring shown on detected surface ──
+  const reticleGroup = new THREE.Group();
+  reticleGroup.visible = false;
+  scene.add(reticleGroup);
+
+  // Outer ring
+  reticleGroup.add(new THREE.Mesh(
+    new THREE.RingGeometry(0.12, 0.15, 48).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.9,side:THREE.DoubleSide})
+  ));
+
+  // Inner dot
+  reticleGroup.add(new THREE.Mesh(
+    new THREE.CircleGeometry(0.025,24).rotateX(-Math.PI/2),
+    new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.9})
+  ));
+
+  // Surface grid — dots arranged in a grid pattern on the detected plane
+  const gridDotGeo = new THREE.CircleGeometry(0.008, 8).rotateX(-Math.PI/2);
+  const gridDotMat = new THREE.MeshBasicMaterial({color:0xffffff,transparent:true,opacity:0.35});
+  const gridSize   = 5;
+  const gridStep   = 0.09;
+  for(let x = -gridSize; x <= gridSize; x++) {
+    for(let z = -gridSize; z <= gridSize; z++) {
+      if(x===0 && z===0) continue; // skip centre — ring is there
+      const dist = Math.sqrt(x*x + z*z);
+      if(dist > gridSize * 0.9) continue; // clip to rough circle
+      const dot = new THREE.Mesh(gridDotGeo, gridDotMat);
+      dot.position.set(x * gridStep, 0, z * gridStep);
+      reticleGroup.add(dot);
+    }
+  }
+
+  // Build planes from config
+  const meshData = [];
+  // ── Visual effects shader ──────────────────────────────────────
+  // Builds a ShaderMaterial with effects applied per-object.
+  // Falls back to MeshBasicMaterial when no effects are set.
+  function buildMaterial(tex, effects) {
+    const hasEffects = effects && typeof effects === 'object' && Object.keys(effects).length > 0;
+    if(!hasEffects) {
+      return new THREE.MeshBasicMaterial({map:tex,transparent:true,side:THREE.DoubleSide,depthWrite:false});
+    }
+
+    const e = effects;
+    const vertShader = `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }
+    `;
+
+    const fragShader = `
+      uniform sampler2D map;
+      uniform float time;
+      uniform float invert;
+      uniform float hueRotate;
+      uniform float saturate;
+      uniform float brightness;
+      uniform float chromaShift;
+      uniform float noise;
+      uniform float scanlines;
+      uniform vec3  glowColor;
+      uniform float glowIntensity;
+      uniform int   glowPulse;
+      uniform vec3  colorFilter;
+      uniform float colorFilterStrength;
+      varying vec2 vUv;
+
+      vec3 rgb2hsv(vec3 c){
+        vec4 K=vec4(0.,-1./3.,2./3.,-1.);
+        vec4 p=mix(vec4(c.bg,K.wz),vec4(c.gb,K.xy),step(c.b,c.g));
+        vec4 q=mix(vec4(p.xyw,c.r),vec4(c.r,p.yzx),step(p.x,c.r));
+        float d=q.x-min(q.w,q.y); float e2=1e-10;
+        return vec3(abs(q.z+(q.w-q.y)/(6.*d+e2)),d/(q.x+e2),q.x);
+      }
+      vec3 hsv2rgb(vec3 c){
+        vec4 K=vec4(1.,2./3.,1./3.,3.);
+        vec3 p=abs(fract(c.xxx+K.xyz)*6.-K.www);
+        return c.z*mix(K.xxx,clamp(p-K.xxx,0.,1.),c.y);
+      }
+      float rand(vec2 co){return fract(sin(dot(co,vec2(12.9898,78.233)))*43758.5453);}
+
+      void main() {
+        vec2 uv = vUv;
+
+        // Chroma shift
+        vec4 col;
+        if(chromaShift > 0.0) {
+          float r = texture2D(map, uv + vec2(chromaShift, 0.0)).r;
+          float g = texture2D(map, uv).g;
+          float b = texture2D(map, uv - vec2(chromaShift, 0.0)).b;
+          float a = texture2D(map, uv).a;
+          col = vec4(r, g, b, a);
+        } else {
+          col = texture2D(map, uv);
+        }
+
+        if(col.a < 0.01) discard;
+
+        vec3 rgb = col.rgb;
+
+        // Brightness
+        rgb *= brightness;
+
+        // Invert
+        if(invert > 0.5) rgb = 1.0 - rgb;
+
+        // Hue rotate
+        if(hueRotate != 0.0) {
+          vec3 hsv = rgb2hsv(rgb);
+          hsv.x = fract(hsv.x + hueRotate / 360.0);
+          rgb = hsv2rgb(hsv);
+        }
+
+        // Saturation
+        if(saturate != 1.0) {
+          vec3 hsv = rgb2hsv(rgb);
+          hsv.y *= saturate;
+          rgb = hsv2rgb(hsv);
+        }
+
+        // Color filter
+        if(colorFilterStrength > 0.0) {
+          rgb = mix(rgb, colorFilter * length(rgb), colorFilterStrength);
+        }
+
+        // Noise / grain
+        if(noise > 0.0) {
+          float n = rand(uv + vec2(time * 0.1)) * noise;
+          rgb += vec3(n) * 0.5 - noise * 0.25;
+        }
+
+        // Scanlines
+        if(scanlines > 0.0) {
+          float line = sin(uv.y * 300.0) * 0.5 + 0.5;
+          rgb *= 1.0 - scanlines * (1.0 - line) * 0.4;
+        }
+
+        // Glow border — sample alpha gradient near edges
+        if(glowIntensity > 0.0) {
+          float offset = 0.015;
+          float edgeAlpha = 0.0;
+          edgeAlpha += texture2D(map, uv + vec2(offset, 0.0)).a;
+          edgeAlpha += texture2D(map, uv - vec2(offset, 0.0)).a;
+          edgeAlpha += texture2D(map, uv + vec2(0.0, offset)).a;
+          edgeAlpha += texture2D(map, uv - vec2(0.0, offset)).a;
+          edgeAlpha = edgeAlpha / 4.0 - col.a;
+          edgeAlpha = clamp(edgeAlpha, 0.0, 1.0);
+          float pulse = glowPulse == 1 ? (sin(time * 3.0) * 0.5 + 0.5) : 1.0;
+          rgb = mix(rgb, glowColor, edgeAlpha * glowIntensity * pulse);
+          col.a = max(col.a, edgeAlpha * glowIntensity * pulse);
+        }
+
+        rgb = clamp(rgb, 0.0, 1.0);
+        gl_FragColor = vec4(rgb, col.a);
+      }
+    `;
+
+    // Parse glow color
+    const glowHex = e.glowBorder?.color || '#ffffff';
+    const glowR = parseInt(glowHex.slice(1,3),16)/255;
+    const glowG = parseInt(glowHex.slice(3,5),16)/255;
+    const glowB = parseInt(glowHex.slice(5,7),16)/255;
+
+    // Parse color filter
+    const cfHex = e.colorFilter?.color || '#ffffff';
+    const cfR = parseInt(cfHex.slice(1,3),16)/255;
+    const cfG = parseInt(cfHex.slice(3,5),16)/255;
+    const cfB = parseInt(cfHex.slice(5,7),16)/255;
+
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        map:               { value: tex },
+        time:              { value: 0 },
+        invert:            { value: e.invert ? 1.0 : 0.0 },
+        hueRotate:         { value: e.hueRotate || 0.0 },
+        saturate:          { value: e.saturate !== undefined ? e.saturate : 1.0 },
+        brightness:        { value: e.brightness !== undefined ? e.brightness : 1.0 },
+        chromaShift:       { value: e.chromaShift || 0.0 },
+        noise:             { value: e.noise || 0.0 },
+        scanlines:         { value: e.scanlines || 0.0 },
+        glowColor:         { value: new THREE.Vector3(glowR, glowG, glowB) },
+        glowIntensity:     { value: e.glowBorder?.intensity || 0.0 },
+        glowPulse:         { value: e.glowBorder?.pulse ? 1 : 0 },
+        colorFilter:       { value: new THREE.Vector3(cfR, cfG, cfB) },
+        colorFilterStrength:{ value: e.colorFilter?.strength || 0.0 },
+      },
+      vertexShader:   vertShader,
+      fragmentShader: fragShader,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    });
+
+    return mat;
+  }
+
+  OBJECTS.forEach(obj => {
+    buildTexture(obj.src, tex => {
+      const mat  = buildMaterial(tex, obj.effects);
+      const mesh = new THREE.Mesh(new THREE.PlaneGeometry(obj.w, obj.h), mat);
+      mesh.position.set(obj.pos.x, obj.pos.y, obj.pos.z);
+      // Apply starting rotation if set
+      if(obj.rotation) {
+        mesh.rotation.set(
+          THREE.MathUtils.degToRad(obj.rotation.x||0),
+          THREE.MathUtils.degToRad(obj.rotation.y||0),
+          THREE.MathUtils.degToRad(obj.rotation.z||0)
+        );
+      }
+      anchorGroup.add(mesh);
+
+      // Check if object has a gifPlay motion — pause by default, play only when triggered
+      const allMotions = [
+        ...(obj.onStart||obj.motion||[]),
+        ...(obj.onTap?.motion||[]),
+        ...(obj.onTap?.chainA?.motion||[]),
+        ...(obj.onTap?.chainB?.motion||[]),
+      ];
+      // Always start paused — gifPlay motion will start it when triggered
+      if(tex._gifPause) {
+        tex._gifPause();
+        tex._gifReset();
+      }
+      // If gifPlay is in onStart, it will be triggered by the motion tick automatically
+      // If gifPlay is nowhere, stays static forever
+
+      meshData.push({
+        mesh, obj, tex,
+        origin: new THREE.Vector3(obj.pos.x, obj.pos.y, obj.pos.z),
+        phase:  seededPhase(obj.id),
+        t:      0,
+        state:  (obj.onStart||obj.motion||[]).map(()=>({elapsed:0,cyclesDone:0,pausing:false,pauseTimer:0,started:false,delayTimer:0,moveOffset:new THREE.Vector3(),lastVec:{x:0,y:0,z:0},lastSpinRad:0,lastSpinAxis:'y',lastScale:1})),
+        tapState: null, tapMode: null, tapToggle: false,
+        tapTriggered: false, tapTimer: 0, tapDuration: 0,
+        tapCount: 0,
+      });
+    });
+  });
+
+  // ── Gyroscope ───────────────────────────────────────────────────
+  const gyroEuler  = new THREE.Euler();
+  const screenQuat = new THREE.Quaternion(-Math.sqrt(0.5),0,0,Math.sqrt(0.5));
+  function onOrientation(e){
+    if(e.alpha===null) return;
+    gyroEuler.set(THREE.MathUtils.degToRad(e.beta),THREE.MathUtils.degToRad(e.alpha),THREE.MathUtils.degToRad(-e.gamma),'YXZ');
+    camera.quaternion.setFromEuler(gyroEuler);
+    camera.quaternion.multiply(screenQuat);
+  }
+  if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+    DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')window.addEventListener('deviceorientation',onOrientation);}).catch(()=>{});
+  } else {
+    window.addEventListener('deviceorientation',onOrientation);
+  }
+
+  // ── Placement ───────────────────────────────────────────────────
+  let placed = false;
+  let pendingHitPose = null;
+
+  function placeScene(pos) {
+    if(placed) return;
+    placed = true;
+    anchorGroup.position.copy(pos);
+    anchorGroup.visible = true;
+    reticleGroup.visible = false;
+    placeBtn.classList.remove('visible');
+    hudText.textContent = 'Scene placed';
+    if(hudSub) hudSub.classList.remove('visible');
+    resetBtn.classList.add('visible');
+    hud.classList.add('visible');
+    setTimeout(()=>{ hud.classList.remove('visible'); }, 2500);
+  }
+
+  // Reset — stop stream cleanly before reload to prevent black screen
+  resetBtn.addEventListener('click', ()=>{
+    cameraStream.getTracks().forEach(t=>t.stop());
+    video.srcObject = null;
+    setTimeout(()=>location.reload(), 150);
+  });
+
+  // Show canvas + HUD
+  canvas.classList.add('visible');
+  loading.classList.add('fade-out');
+  setTimeout(()=>{ loading.style.display='none'; }, 700);
+  hud.classList.add('visible');
+
+  // ── Try WebXR ───────────────────────────────────────────────────
+  let xrSession     = null;
+  let hitTestSource = null;
+  let localSpace    = null;
+  let usingWebXR    = false;
+
+  if(navigator.xr){
+    const supported = await navigator.xr.isSessionSupported('immersive-ar').catch(()=>false);
+    if(supported){
+      try{
+        xrSession = await navigator.xr.requestSession('immersive-ar',{
+          requiredFeatures:['local'],
+          optionalFeatures:['hit-test','dom-overlay','local-floor'],
+          domOverlay:{root:document.body}
+        });
+        renderer.xr.enabled = true;
+        renderer.xr.setReferenceSpaceType('local');
+        await renderer.xr.setSession(xrSession);
+        localSpace  = await xrSession.requestReferenceSpace('local').catch(()=>null);
+        const viewerSpace = await xrSession.requestReferenceSpace('viewer').catch(()=>null);
+        if(viewerSpace) hitTestSource = await xrSession.requestHitTestSource({space:viewerSpace}).catch(()=>null);
+        // WebXR handles camera passthrough — stop our video stream
+        video.pause();
+        video.srcObject = null;
+        cameraStream.getTracks().forEach(t => t.stop());
+        usingWebXR = true;
+        xrSession.addEventListener('end',()=>{
+          cameraStream.getTracks().forEach(t=>t.stop());
+          setTimeout(()=>location.reload(),150);
+        });
+      } catch(e){
+        console.warn('WebXR session failed:', e.name, e.message);
+        usingWebXR = false;
+      }
+    }
+  }
+
+  // Set up placement controls
+  if(hitTestSource){
+    console.log('WebXR hit-test active');
+    hudText.textContent = 'Scan a flat surface';
+    if(hudSub) { hudSub.textContent='Tap the marker to place the scene'; }
+    placeBtn.classList.add('visible');
+    placeBtn.addEventListener('click',()=>{ if(pendingHitPose) placeScene(pendingHitPose); });
+  } else {
+    console.log('WebXR fallback — tap anywhere mode. usingWebXR:', usingWebXR, 'hitTestSource:', hitTestSource);
+    hudText.textContent = 'Tap to place scene';
+    if(hudSub) { hudSub.textContent='Walk slowly — tap the surface to anchor the scene'; hudSub.classList.add('visible'); }
+    canvas.addEventListener('click',()=>{
+      if(placed) return;
+      const pos = new THREE.Vector3(0,-0.3,-1.5);
+      pos.applyQuaternion(camera.quaternion);
+      pos.add(camera.position);
+      placeScene(pos);
+    });
+  }
+
+  // ── Initial visibility ─────────────────────────────────────────
+  // Objects with visible:false in config start hidden
+  meshData.forEach(p => {
+    if(p.obj.visible === false) p.mesh.visible = false;
+  });
+
+  // ── Sound preload ──────────────────────────────────────────────
+  const soundCache = {};
+  function getSound(src) {
+    if(!src) return null;
+    if(soundCache[src]) return soundCache[src];
+    const audio = new Audio(safeSrc(src));
+    audio.preload = 'auto';
+    soundCache[src] = audio;
+    return audio;
+  }
+  // Preload any sounds referenced in onTap actions
+  OBJECTS.forEach(obj => {
+    if(obj.onTap && obj.onTap.action === 'playSound' && obj.onTap.src) {
+      getSound(obj.onTap.src);
+    }
+  });
+
+  // ── Message overlay ────────────────────────────────────────────
+  const msgOverlay = document.createElement('div');
+  msgOverlay.style.cssText = [
+    'position:fixed','top:50%','left:50%',
+    'transform:translate(-50%,-50%)',
+    'z-index:200','pointer-events:none',
+    'background:rgba(0,0,0,.75)',
+    'color:#fff','font-family:Courier New,monospace',
+    'font-size:.8rem','letter-spacing:.12em',
+    'text-align:center','padding:16px 28px',
+    'border:1px solid rgba(255,255,255,.2)',
+    'max-width:80vw','line-height:1.8',
+    'opacity:0','transition:opacity .3s ease'
+  ].join(';');
+  document.body.appendChild(msgOverlay);
+  let msgTimeout = null;
+
+  function showMessage(text, duration=3000) {
+    if(msgTimeout) clearTimeout(msgTimeout);
+    msgOverlay.textContent = text;
+    msgOverlay.style.opacity = '1';
+    msgTimeout = setTimeout(() => { msgOverlay.style.opacity = '0'; }, duration);
+  }
+
+  // ── Action executor ────────────────────────────────────────────
+  function executeAction(action, tappedObj) {
+    if(!action) return;
+    // Handle both {action:"hide", targets:[...]} and plain string "hide"
+    if(typeof action === 'string') action = { action };
+    switch(action.action) {
+
+      case 'openUrl':
+        if(action.url) {
+          let url = action.url;
+          if(!url.startsWith('http://') && !url.startsWith('https://')) url = 'https://' + url;
+          // Show a tap overlay — direct window.open is blocked on mobile
+          const existing = document.getElementById('url-overlay');
+          if(existing) existing.remove();
+          const overlay = document.createElement('div');
+          overlay.id = 'url-overlay';
+          overlay.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9999;background:rgba(0,0,0,.92);border:1px solid rgba(255,255,255,.2);color:#fff;font-family:Courier New,monospace;font-size:.7rem;letter-spacing:.08em;padding:28px 32px;text-align:center;max-width:85vw;line-height:2;';
+          const label = document.createElement('div');
+          label.style.cssText = 'color:rgba(255,255,255,.4);font-size:.55rem;letter-spacing:.2em;text-transform:uppercase;margin-bottom:12px;';
+          label.textContent = 'Open link';
+          const link = document.createElement('a');
+          link.href = url; link.target = '_blank'; link.rel = 'noopener';
+          link.textContent = url;
+          link.style.cssText = 'color:#c8a96e;display:block;word-break:break-all;margin-bottom:20px;';
+          const btn = document.createElement('button');
+          btn.textContent = 'Open';
+          btn.style.cssText = 'background:transparent;border:1px solid #c8a96e;color:#c8a96e;font-family:Courier New,monospace;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;padding:10px 28px;cursor:pointer;margin-right:12px;';
+          btn.addEventListener('click', () => { window.open(url, '_blank'); overlay.remove(); });
+          const close = document.createElement('button');
+          close.textContent = 'Close';
+          close.style.cssText = 'background:transparent;border:1px solid rgba(255,255,255,.2);color:rgba(255,255,255,.4);font-family:Courier New,monospace;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;padding:10px 28px;cursor:pointer;';
+          close.addEventListener('click', () => overlay.remove());
+          overlay.appendChild(label); overlay.appendChild(link);
+          overlay.appendChild(btn); overlay.appendChild(close);
+          document.body.appendChild(overlay);
+        }
+        break;
+
+      case 'reveal':
+        (action.targets||[]).forEach(id => {
+          const p = meshData.find(p => p.obj.id === id);
+          if(p) {
+            p.mesh.visible = true;
+            // Reset motion state so revealed objects start fresh
+            p.state.forEach(s => {
+              s.elapsed=0; s.cyclesDone=0; s.pausing=false;
+              s.pauseTimer=0; s.started=false; s.delayTimer=0;
+              s.moveOffset.set(0,0,0);
+            });
+            // Reset tap state too
+            p.tapState=null; p.tapMotions=null; p.tapMode=null;
+            p.tapTriggered=false; p.tapCount=0;
+            // Fire onReveal chain if defined
+            if(p.obj.onReveal) {
+              const revMotions = Array.isArray(p.obj.onReveal) ? p.obj.onReveal : (p.obj.onReveal.motion||[]);
+              if(revMotions.length) {
+                p.tapState   = makeMotionState(revMotions);
+                p.tapMotions = revMotions;
+                p.tapMode    = p.obj.onReveal.mode || 'additive';
+                p.tapDuration = p.obj.onReveal.duration || 3;
+                p.tapTimer   = 0;
+              }
+              if(p.obj.onReveal.action) executeAction(p.obj.onReveal.action, p.obj);
+            }
+          }
+        });
+        break;
+
+      case 'hide':
+        (action.targets||[]).forEach(id => {
+          const p = meshData.find(p => p.obj.id === id);
+          if(p) p.mesh.visible = false;
+        });
+        break;
+
+      case 'toggle':
+        (action.targets||[]).forEach(id => {
+          const p = meshData.find(p => p.obj.id === id);
+          if(p) {
+            p.mesh.visible = !p.mesh.visible;
+            if(p.mesh.visible) {
+              p.state.forEach(s => {
+                s.elapsed=0; s.cyclesDone=0; s.pausing=false;
+                s.pauseTimer=0; s.started=false; s.delayTimer=0;
+                s.moveOffset.set(0,0,0);
+              });
+            }
+          }
+        });
+        break;
+
+      case 'playSound':
+        if(action.src) {
+          const audio = getSound(action.src);
+          if(audio) {
+            audio.currentTime = 0;
+            audio.play().catch(()=>{});
+          }
+        }
+        break;
+
+      case 'message':
+        if(action.text) showMessage(action.text, action.duration||3000);
+        break;
+    }
+  }
+
+  // ── Raycaster ──────────────────────────────────────────────────
+  const raycaster   = new THREE.Raycaster();
+  const tapPoint    = new THREE.Vector2();
+  let lastTapTime   = 0;
+  let tapMoved      = false;
+  let tapStartX     = 0;
+  let tapStartY     = 0;
+
+  // Track touch start to distinguish taps from drags
+  canvas.addEventListener('touchstart', e => {
+    tapStartX = e.touches[0].clientX;
+    tapStartY = e.touches[0].clientY;
+    tapMoved  = false;
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', e => {
+    const dx = e.touches[0].clientX - tapStartX;
+    const dy = e.touches[0].clientY - tapStartY;
+    if(Math.sqrt(dx*dx+dy*dy) > 10) tapMoved = true;
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', e => {
+    if(tapMoved) return; // was a drag, not a tap
+    if(!placed) return;  // scene not placed yet
+
+    const now = Date.now();
+    if(now - lastTapTime < 300) return; // debounce
+    lastTapTime = now;
+
+    const touch = e.changedTouches[0];
+    const rect  = canvas.getBoundingClientRect();
+    tapPoint.x  =  ((touch.clientX - rect.left) / rect.width)  * 2 - 1;
+    tapPoint.y  = -((touch.clientY - rect.top)  / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(tapPoint, camera);
+    const meshes  = meshData.filter(p => p.mesh.visible).map(p => p.mesh);
+    const hits = raycaster.intersectObjects(meshes, false);
+    // Pick closest hit that has an onTap handler
+    for(const hit of hits) {
+      const p = meshData.find(p => p.mesh === hit.object);
+      if(p && p.obj.onTap) { activateTapMotion(p); break; }
+    }
+  });
+
+  // Mouse click fallback (for desktop testing in fallback mode)
+  canvas.addEventListener('click', e => {
+    if(!placed) return;
+    if(tapMoved) return;
+
+    const rect = canvas.getBoundingClientRect();
+    tapPoint.x =  ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    tapPoint.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+
+    raycaster.setFromCamera(tapPoint, camera);
+    const meshes = meshData.filter(p => p.mesh.visible).map(p => p.mesh);
+    for(const hit of raycaster.intersectObjects(meshes, false)) {
+      const p = meshData.find(p => p.mesh === hit.object);
+      if(p && p.obj.onTap) { activateTapMotion(p); break; }
+    }
+  });
+
+
+  // ── Tap motion system ───────────────────────────────────────────
+  function makeMotionState(motions) {
+    return motions.map(()=>({elapsed:0,cyclesDone:0,pausing:false,pauseTimer:0,
+      started:false,delayTimer:0,moveOffset:new THREE.Vector3(),
+      lastVec:{x:0,y:0,z:0},lastSpinRad:0,lastSpinAxis:'y',lastScale:1}));
+  }
+
+  function activateTapMotion(p) {
+    const tap = p.obj.onTap; if(!tap) return;
+    const mode = tap.mode || 'additive';
+    if(mode==='once'){ if(p.tapTriggered) return; p.tapTriggered=true; }
+
+    // maxTaps limit
+    if(tap.maxTaps !== undefined) {
+      p.tapCount = (p.tapCount||0) + 1;
+      if(p.tapCount > tap.maxTaps) return;
+    }
+
+    // Normalise action — handle both string and object formats
+    // String format: tap.action="openUrl", tap.url="..." (flat)
+    // Object format: tap.action={ action:"openUrl", url:"..." } (nested)
+    let action = null;
+    if(tap.action) {
+      if(typeof tap.action === 'string') {
+        // Flat format — build object from sibling fields
+        action = { action: tap.action };
+        if(tap.url) action.url = tap.url;
+        if(tap.targets) action.targets = tap.targets;
+        if(tap.src) action.src = tap.src;
+        if(tap.text) action.text = tap.text;
+        if(tap.duration && typeof tap.duration === 'number' && tap.duration < 100) action.duration = tap.duration; // small duration = message duration in seconds
+      } else {
+        action = tap.action;
+      }
+    }
+
+    if(mode==='additive-loop' && p.tapMode==='additive-loop') {
+      p.tapState=null; p.tapMotions=null; p.tapMode=null;
+      if(action) executeAction(action, p.obj);
+      return;
+    }
+
+    if(mode==='toggle'){
+      p.tapToggle = !p.tapToggle;
+      // Use chainA/chainB if defined, otherwise use onStart vs onTap.motion
+      const chainBMotions = tap.chainB?.motion || tap.motion || [];
+      const chainAMotions = tap.chainA?.motion || p.obj.onStart || p.obj.motion || [];
+      const chain = p.tapToggle ? chainBMotions : chainAMotions;
+      p.tapState=makeMotionState(chain); p.tapMotions=chain; p.tapMode='additive-loop';
+      const toggleAction = p.tapToggle
+        ? (tap.chainB?.action || action)
+        : (tap.chainA?.action || null);
+      if(toggleAction) executeAction(toggleAction, p.obj);
+      return;
+    }
+
+    if(mode==='timed'){
+      const motions=tap.motion||[];
+      p.tapState=makeMotionState(motions); p.tapMotions=motions;
+      p.tapMode='timed'; p.tapTimer=0; p.tapDuration=tap.duration||3;
+      if(action) executeAction(action, p.obj);
+      return;
+    }
+
+    const motions=tap.motion||[];
+    p.tapState=makeMotionState(motions); p.tapMotions=motions;
+    p.tapMode=(mode==='additive-loop')?'additive-loop':'additive';
+    if(action) executeAction(action, p.obj);
+  }
+
+  function tickTapMotion(p, dt) {
+    if(!p.tapState||!p.tapMotions||!p.tapMotions.length) return;
+    const mode=p.tapMode;
+    if(mode==='timed'){
+      p.tapTimer=(p.tapTimer||0)+dt;
+      if(p.tapTimer>=p.tapDuration){ p.tapState=null;p.tapMotions=null;p.tapMode=null; return; }
+    }
+    if(mode==='additive'){
+      const allDone=p.tapState.every((s,i)=>{
+        const m=p.tapMotions[i], freq=m.duration?(1/m.duration):(m.speed||0.5);
+        return s.elapsed*freq>=1;
+      });
+      if(allDone){ p.tapState=null;p.tapMotions=null;p.tapMode=null; return; }
+    }
+    const mesh=p.mesh, phase=p.phase, state=p.tapState, motions=p.tapMotions;
+    let dx=0,dy=0,dz=0,dsx=1,dsy=1,dsz=1,dSX=0,dSY=0,dSZ=0;
+    for(let i=0;i<motions.length;i++){
+      const m=motions[i],s=state[i];
+      if(m.type==='move')continue;
+      if(!s.started){s.delayTimer+=dt;if(s.delayTimer<(m.delay||0))continue;s.started=true;}
+      if(s.pausing){s.pauseTimer+=dt;if(s.pauseTimer<(m.pause||0))continue;s.pausing=false;s.pauseTimer=0;}
+      s.elapsed+=dt;
+      const freq=m.duration?(1/m.duration):(m.speed||0.5),fn=Ease[m.ease]||Ease.sine;
+      const prev=Math.floor((s.elapsed-dt)*freq),curr=Math.floor(s.elapsed*freq);
+      if(curr>prev){s.cyclesDone++;if(m.pause&&m.pause>0){s.pausing=true;s.pauseTimer=0;}}
+      const t=s.elapsed+phase,cycle=(t*freq)%1,dir=Number(m.direction)||1;
+      switch(m.type){
+        case 'float':dy+=easedOsc(t*freq,fn)*m.amp*dir;break;
+        case 'drift':{const o=easedOsc(t*freq,fn)*m.amp*dir;if(m.axis==='x')dx+=o;else if(m.axis==='y')dy+=o;else dz+=o;break;}
+        case 'orbit':{const a=fn(cycle)*Math.PI*2*dir,r=m.radius||0.2;if(m.axis==='y'){dx+=Math.cos(a)*r;dz+=Math.sin(a)*r;}else if(m.axis==='x'){dy+=Math.cos(a)*r;dz+=Math.sin(a)*r;}else{dx+=Math.cos(a)*r;dy+=Math.sin(a)*r;}break;}
+        case 'spin':{const rad=computeSpinRad(m,s,phase);if(m.axis==='y')dSY+=rad;else if(m.axis==='x')dSX+=rad;else dSZ+=rad;s.lastSpinRad=rad;s.lastSpinAxis=m.axis;break;}
+        case 'breathe':{const sc=1+easedOsc(t*freq,fn)*m.amp;dsx*=sc;dsy*=sc;dsz*=sc;break;}
+        case 'rotate':{
+          const dur=m.duration||2, hold=m.hold||0;
+          const totalCycle=dur+hold;
+          const progress=(s.elapsed%totalCycle)/dur;
+          const inHold=(s.elapsed%totalCycle)>dur;
+          const frac=inHold?1:Math.min((Ease[m.ease]||Ease.sine)(progress),1);
+          dSX+=THREE.MathUtils.degToRad((m.degreesX||0)*frac);
+          dSY+=THREE.MathUtils.degToRad((m.degreesY||0)*frac);
+          dSZ+=THREE.MathUtils.degToRad((m.degreesZ||0)*frac);
+          break;
+        }
+        case 'gifPlay':{
+          if(!s._gifStarted) {
+            if(m.delay && s.elapsed < m.delay) break;
+            if(p.tex?._gifPlay) {
+              const cycles = m.loop === false ? (m.cycles||1) : null;
+              p.tex._gifReset?.();
+              p.tex._gifPlay(cycles);
+            }
+            s._gifStarted = true;
+          }
+          break;
+        }
+      }
+    }
+    mesh.position.x+=dx; mesh.position.y+=dy; mesh.position.z+=dz;
+    mesh.scale.x*=dsx; mesh.scale.y*=dsy; mesh.scale.z*=dsz;
+    if(dSX)mesh.rotateX(dSX); if(dSY)mesh.rotateY(dSY); if(dSZ)mesh.rotateZ(dSZ);
+  }
+
+  let last = 0;
+
+  function frame(timestamp, xrFrame) {
+    if(last === 0) { last = timestamp; return; }
+    const rawDt = (timestamp-last)/1000;
+    // Cap dt tightly — if tab was backgrounded or phone slept, skip the catch-up frame
+    const dt = (rawDt > 0.1) ? 0 : Math.min(rawDt, 0.033);
+    last = timestamp;
+
+    // Update video texture
+    if(video.readyState >= video.HAVE_CURRENT_DATA) videoTex.needsUpdate = true;
+
+    // Update shader time uniform for animated effects
+    const elapsed = timestamp / 1000;
+    meshData.forEach(p => {
+      if(p.mesh.material.uniforms?.time) p.mesh.material.uniforms.time.value = elapsed;
+    });
+
+    // Hit-test for surface detection
+    if(xrFrame && hitTestSource && localSpace){
+      const results = xrFrame.getHitTestResults(hitTestSource);
+      if(results.length > 0){
+        const pose = results[0].getPose(localSpace);
+        if(pose){
+          const m = pose.transform.matrix;
+          reticleGroup.position.set(m[12],m[13],m[14]);
+          reticleGroup.visible = !placed;
+          pendingHitPose = new THREE.Vector3(m[12],m[13],m[14]);
+          if(!placed) { hudText.textContent = 'Surface found'; if(hudSub){ hudSub.textContent='Tap the marker to place the scene'; hudSub.classList.add('visible'); } }
+        }
+      } else {
+        reticleGroup.visible = false;
+        if(!placed) { hudText.textContent = 'Scan a flat surface'; if(hudSub) hudSub.classList.remove('visible'); }
+      }
+    }
+
+    // Tick motions
+    meshData.forEach(p => { tickMesh(p, dt, camera); tickTapMotion(p, dt); });
+
+    // In WebXR mode, device handles camera passthrough — just render 3D scene
+    // In fallback mode, render our video background then 3D scene on top
+    renderer.clear();
+    if(!usingWebXR){
+      renderer.render(bgScene, bgCam);
+      renderer.clearDepth();
+    }
+    renderer.render(scene, camera);
+  }
+
+  if(usingWebXR){
+    renderer.setAnimationLoop(frame);
+  } else {
+    function loop(now){ requestAnimationFrame(loop); frame(now, null); }
+    requestAnimationFrame(loop);
+  }
+}
+
+window.addEventListener('resize',()=>{
+  const r = document.querySelector('#ar-canvas').__renderer;
+  if(r){ r.setSize(window.innerWidth,window.innerHeight); }
+});
+</script>
+</body>
+</html>

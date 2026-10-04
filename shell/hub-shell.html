@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flōyél Hub — Shell Design Pass v4</title>
+<style>
+  :root{
+    --parchment:#171B21;
+    --panel:#1C2129;
+    --panel2:#20262F;
+    --text:#D9D4C6;
+    --ink:#333C47;
+    --contour:#2A323C;
+    --gold:#C89A55;
+    --icon:#8A93A0;
+    --icon-active:#C89A55;
+    --start-icon: var(--icon-active);
+    --start-icon-accent: var(--gold);
+    --gold-dim: rgba(200,154,85,.16);
+    --font-display: Iowan Old Style, "Palatino Linotype", Georgia, serif;
+    --font-mono: ui-monospace, "SF Mono", Consolas, Menlo, monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  body{
+    margin:0; font-family:var(--font-mono); color:var(--text);
+    background:var(--parchment); height:100vh; width:100vw; overflow:hidden;
+  }
+
+  #hubWindow{ position:relative; display:flex; width:100%; height:100%; }
+  #hubWindow[data-dock="left"]{ flex-direction:row; }
+  #hubWindow[data-dock="right"]{ flex-direction:row-reverse; }
+  #hubWindow[data-dock="top"]{ flex-direction:column; }
+  #hubWindow[data-dock="bottom"]{ flex-direction:column-reverse; }
+
+  #taskbar{ background:var(--panel2); border:1px solid var(--ink); display:flex; flex:none; }
+  #hubWindow[data-dock="left"] #taskbar, #hubWindow[data-dock="right"] #taskbar{ width:52px; flex-direction:column; border-right:0; }
+  #hubWindow[data-dock="right"] #taskbar{ border-right:1px solid var(--ink); border-left:0; }
+  #hubWindow[data-dock="top"] #taskbar, #hubWindow[data-dock="bottom"] #taskbar{ height:44px; flex-direction:row; border-bottom:0; }
+  #hubWindow[data-dock="bottom"] #taskbar{ border-bottom:1px solid var(--ink); border-top:0; }
+
+  #startBtn{
+    display:flex; align-items:center; justify-content:center; cursor:pointer; flex:none;
+    background:var(--panel); border-bottom:1px solid var(--contour);
+  }
+  #hubWindow[data-dock="left"] #startBtn, #hubWindow[data-dock="right"] #startBtn{ width:52px; height:52px; }
+  #hubWindow[data-dock="top"] #startBtn, #hubWindow[data-dock="bottom"] #startBtn{ width:44px; height:44px; border-bottom:none; border-right:1px solid var(--contour); }
+  #startBtn svg{width:24px;height:24px; transition:transform .4s ease;}
+  #startBtn:hover svg{transform:rotate(35deg);}
+
+  #segments{ display:flex; flex:1; }
+  #hubWindow[data-dock="left"] #segments, #hubWindow[data-dock="right"] #segments{ flex-direction:column; }
+  .seg{
+    display:flex; align-items:center; justify-content:center; gap:.35rem; font-size:.62rem; color:var(--text);
+    cursor:pointer; white-space:nowrap; position:relative;
+  }
+  #hubWindow[data-dock="left"] .seg, #hubWindow[data-dock="right"] .seg{ padding:.65rem 0; border-bottom:1px solid var(--contour); flex-direction:column; }
+  #hubWindow[data-dock="top"] .seg, #hubWindow[data-dock="bottom"] .seg{ padding:0 .7rem; border-right:1px solid var(--contour); flex-direction:row; }
+  .seg svg{width:16px;height:16px; flex:none; fill:var(--icon); stroke:none;}
+  .seg img.custom-icon{width:16px;height:16px; flex:none; object-fit:contain;}
+  .seg.active svg{fill:var(--icon-active);}
+  .seg-label{display:none;}
+  body.show-labels .seg-label{display:inline;}
+
+  #terminal{ flex:1; min-width:0; min-height:0; position:relative; display:flex; flex-direction:column; background:var(--panel); border:1px solid var(--ink); }
+  #termTitle{
+    display:flex; align-items:center; gap:.5rem; padding:.5rem .8rem;
+    background:var(--panel2); border-bottom:1px solid var(--ink); cursor:grab; user-select:none;
+    font-family:var(--font-display); font-style:italic; font-size:.83rem; letter-spacing:.03em; color:var(--text);
+  }
+  #termTitle:active{cursor:grabbing;}
+  #termTitle .rose{width:14px;height:14px;flex:none;}
+  #termTitle .ttl{flex:1;}
+  #termTitle .dot{width:9px;height:9px;border-radius:50%;border:1px solid var(--ink); background:#6B4A7A; cursor:pointer; transition:background .15s ease;}
+  #termTitle .dot:hover{background:#E0554F;}
+
+  #scrollback{ flex:1; min-height:0; overflow-y:auto; padding:1rem 1.1rem; font-size:.78rem; line-height:1.7; background:var(--parchment); color:var(--text); }
+  #scrollback .sys{opacity:.65;}
+  #scrollback .gold{color:var(--gold);}
+
+  #inputRow{ position:relative; display:flex; align-items:center; gap:.5rem; padding:.6rem .9rem; background:var(--panel2); border-top:1px solid var(--contour); }
+  #inputRow .caret{color:var(--gold); font-weight:bold;}
+  #cmdInput{ flex:1; background:transparent; border:none; outline:none; color:var(--text); font-family:var(--font-mono); font-size:.8rem; letter-spacing:.02em; }
+
+  /* ── Minecraft-style tab-complete strip ─────────────────────────── */
+  #suggestBox{
+    position:absolute; left:.9rem; right:.9rem; bottom:100%; margin-bottom:2px;
+    display:none; flex-flow:row wrap; gap:.3rem;
+    background:var(--panel); border:1px solid var(--ink); padding:.4rem .5rem;
+    box-shadow:0 6px 18px rgba(0,0,0,.3);
+    font-family:var(--font-mono); font-size:.7rem; z-index:20;
+  }
+  #suggestBox.open{display:flex;}
+  #suggestBox .sug{
+    padding:.2rem .5rem; border:1px solid var(--contour); cursor:pointer;
+    color:var(--text); opacity:.72; white-space:nowrap;
+  }
+  #suggestBox .sug:hover{opacity:1;}
+  #suggestBox .sug.active{ border-color:var(--gold); color:var(--gold); opacity:1; background:var(--gold-dim); }
+  #suggestBox .sug-hint{ opacity:.5; font-size:.62rem; align-self:center; padding-left:.2rem; }
+
+  .flyout{
+    position:fixed; display:none; flex-direction:column; width:220px;
+    background:var(--panel); border:1px solid var(--ink); box-shadow:0 10px 30px rgba(0,0,0,.3);
+    z-index:30; font-size:.78rem; color:var(--text);
+  }
+  .flyout.open{display:flex;}
+  .flyout button.row{
+    all:unset; padding:.65rem .9rem; cursor:pointer; display:flex; justify-content:space-between;
+    align-items:center; border-bottom:1px solid var(--contour); color:var(--text);
+  }
+  .flyout button.row:last-child{border-bottom:none;}
+  .flyout button.row:hover{background:var(--gold-dim);}
+  .flyout .arrow{opacity:.6; font-size:.7rem;}
+
+  .panel{
+    position:fixed; display:none; width:min(340px,88vw); max-height:78vh; overflow-y:auto;
+    background:var(--parchment); border:1px solid var(--ink); box-shadow:0 10px 30px rgba(0,0,0,.3);
+    z-index:31; color:var(--text);
+  }
+  .panel.open{display:block;}
+  .panel header{
+    display:flex; justify-content:space-between; align-items:center; padding:.7rem .9rem;
+    background:var(--panel2); border-bottom:1px solid var(--ink);
+    font-family:var(--font-display); font-style:italic; font-size:.9rem;
+  }
+  .panel header button{all:unset; cursor:pointer; font-size:.75rem; opacity:.7;}
+  .panel header button.back{margin-right:auto; padding-right:.6rem;}
+
+  .cz-section{border-bottom:1px solid var(--contour);}
+  .cz-head{
+    display:flex; justify-content:space-between; align-items:center; padding:.6rem .9rem;
+    cursor:pointer; font-size:.66rem; letter-spacing:.12em; text-transform:uppercase; color:var(--gold);
+  }
+  .cz-head .car{transition:transform .2s;}
+  .cz-section.open .cz-head .car{transform:rotate(90deg);}
+  .cz-body{display:none; padding:0 .9rem .9rem;}
+  .cz-section.open .cz-body{display:block;}
+
+  .cz-row{display:flex; align-items:center; justify-content:space-between; gap:.6rem; margin:.5rem 0; font-size:.7rem;}
+  .cz-row label{opacity:.75;}
+  .cz-row input[type=color]{width:30px;height:22px;border:1px solid var(--ink);padding:0;background:none;cursor:pointer;}
+  .cz-row input[type=range]{width:110px;}
+  .cz-row input[type=text]{ font-family:var(--font-mono); font-size:.72rem; background:var(--panel); border:1px solid var(--contour); padding:.3rem .4rem; width:130px; color:var(--text); }
+  .cz-row select{font-family:var(--font-mono); font-size:.7rem; background:var(--panel); border:1px solid var(--contour); padding:.2rem .3rem; color:var(--text);}
+  .grad-toggle{display:flex; align-items:center; gap:.3rem; font-size:.62rem; opacity:.75;}
+
+  .mini-toggle{ font-size:.62rem; opacity:.7; cursor:pointer; text-decoration:underline; margin:.3rem 0 .2rem; }
+  .mini-body{display:none; padding-left:.6rem; border-left:2px solid var(--contour); margin-top:.3rem;}
+  .mini-body.open{display:block;}
+  .cz-block{padding:.6rem 0; border-bottom:1px solid var(--contour);}
+  .cz-block:last-child{border-bottom:none;}
+  .cz-block-title{font-size:.62rem; letter-spacing:.08em; text-transform:uppercase; opacity:.55; margin-bottom:.3rem;}
+  .cz-check-row{display:flex; align-items:center; gap:.4rem; font-size:.68rem; opacity:.8; cursor:pointer; margin:.3rem 0;}
+
+  .pos-grid{display:grid; grid-template-columns:repeat(4,1fr); gap:.4rem; margin:.5rem 0;}
+  .pos-grid button{ all:unset; text-align:center; font-size:.6rem; letter-spacing:.06em; text-transform:uppercase; padding:.4rem 0; border:1px solid var(--contour); cursor:pointer; opacity:.7; }
+  .pos-grid button.active{border-color:var(--gold); opacity:1; background:var(--gold-dim);}
+
+  .theme-swatches{display:flex; gap:.9rem; margin:.5rem 0; flex-wrap:wrap;}
+  .theme-opt{display:flex; flex-direction:column; align-items:center; gap:.3rem;}
+  .theme-opt span{font-size:.58rem; opacity:.65; letter-spacing:.03em;}
+  .theme-swatches button{ all:unset; width:34px;height:34px; border:1px solid var(--ink); cursor:pointer; flex:none; }
+
+  .filebtn{ all:unset; display:inline-block; font-size:.66rem; padding:.35rem .6rem; border:1px solid var(--contour); cursor:pointer; opacity:.75; }
+  .filebtn:hover{border-color:var(--gold); opacity:1;}
+
+  /* ── Profile panel ───────────────────────────────────────────── */
+  .profile-body{padding:1rem .9rem;}
+  .avatar-row{display:flex; align-items:center; gap:.9rem; margin-bottom:1.1rem;}
+  #avatarCircle{
+    width:56px;height:56px;border-radius:50%;border:1px solid var(--ink); background:var(--panel2);
+    display:flex; align-items:center; justify-content:center; cursor:pointer; overflow:hidden; flex:none;
+    background-size:cover; background-position:center;
+  }
+  #avatarCircle svg{width:26px;height:26px;}
+  .name-field{flex:1;}
+  .name-field label{display:block; font-size:.6rem; letter-spacing:.1em; text-transform:uppercase; color:var(--gold); margin-bottom:.3rem;}
+  .name-field input{width:100%; font-family:var(--font-display); font-style:italic; font-size:.95rem; background:none; border:none; border-bottom:1px solid var(--contour); padding:.2rem 0; color:var(--text);}
+  .name-field input:focus{outline:none; border-color:var(--gold);}
+
+  .pf-btn{
+    display:flex; align-items:center; gap:.6rem; padding:.65rem .3rem; cursor:pointer;
+    border-bottom:1px solid var(--contour); font-size:.75rem;
+  }
+  .pf-btn svg{width:16px;height:16px; fill:var(--gold); flex:none;}
+  .pf-btn .car{margin-left:auto; opacity:.6; font-size:.65rem; transition:transform .2s;}
+  .pf-section.open .pf-btn .car{transform:rotate(90deg);}
+  .pf-content{display:none; padding:.6rem .3rem .9rem 1.9rem; font-size:.68rem; opacity:.8; line-height:1.7;}
+  .pf-section.open .pf-content{display:block;}
+  .scroll-list{max-height:120px; overflow-y:auto; padding-right:.3rem;}
+
+  .saved-theme-row{display:flex; align-items:center; gap:.5rem; font-size:.7rem; padding:.25rem 0;}
+  .st-swatch{width:18px;height:18px; border:1px solid var(--ink); flex:none;}
+  .saved-theme-row span{flex:1;}
+  .saved-theme-row button{all:unset; font-size:.6rem; opacity:.65; cursor:pointer;}
+  .saved-theme-row button:hover{opacity:1; color:var(--gold);}
+
+  ::-webkit-scrollbar{width:7px;}
+  ::-webkit-scrollbar-thumb{background:var(--contour);}
+</style>
+</head>
+<body>
+
+<div id="hubWindow" data-dock="left">
+  <div id="taskbar">
+    <div id="startBtn">
+      <svg viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="var(--start-icon)" stroke-width="4"/><path d="M50 10 L58 50 L50 90 L42 50 Z" fill="var(--start-icon)"/><path d="M10 50 L50 42 L90 50 L50 58 Z" fill="var(--start-icon-accent)"/></svg>
+    </div>
+    <div id="segments">
+      <div class="seg inactive" data-app="library" title="Library">
+        <svg viewBox="0 0 24 24"><polygon points="12,4 20,20 4,20"/></svg>
+        <span class="seg-label">Library</span>
+      </div>
+      <div class="seg inactive" data-app="territories" title="Territories">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>
+        <span class="seg-label">Territories</span>
+      </div>
+      <div class="seg inactive" data-app="argmap" title="ARG Map">
+        <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14"/></svg>
+        <span class="seg-label">ARG Map</span>
+      </div>
+    </div>
+  </div>
+
+  <div id="terminal">
+    <div id="termTitle" class="pywebview-drag-region">
+      <svg class="rose" viewBox="0 0 100 100"><circle cx="50" cy="50" r="46" fill="none" stroke="#23201B" stroke-width="4"/><path d="M50 10 L58 50 L50 90 L42 50 Z" fill="#23201B"/></svg>
+      <span class="ttl">Hub Terminal</span>
+      <span class="dot" id="closeDot" title="Quit"></span>
+    </div>
+    <div id="scrollback"></div>
+    <div id="inputRow">
+      <div id="suggestBox"></div>
+      <span class="caret">&gt;</span>
+      <input id="cmdInput" type="text" autocomplete="off" spellcheck="false">
+    </div>
+  </div>
+</div>
+
+<!-- Start menu -->
+<div id="startMenu" class="flyout">
+  <button class="row" id="openProfile">Profile <span class="arrow">▸</span></button>
+  <button class="row" id="openGuide">Guide <span class="arrow">↗</span></button>
+  <button class="row" id="openMisc">Misc <span class="arrow">▸</span></button>
+  <button class="row" id="openSettings">Settings <span class="arrow">▸</span></button>
+</div>
+
+<!-- Settings panel -->
+<div id="settingsPanel" class="panel">
+  <header><span>Settings</span><button id="closeSettings">close ✕</button></header>
+  <div style="display:flex; flex-direction:column;">
+    <button id="openCustomize" style="all:unset; padding:.65rem .9rem; cursor:pointer; display:flex; justify-content:space-between; border-bottom:1px solid var(--contour); color:var(--text);">Customize <span class="arrow">▸</span></button>
+    <div style="padding:.65rem .9rem; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--contour); gap:.6rem;">
+      <span style="font-size:.78rem;">Library browser</span>
+      <select id="libraryModeSelect" style="font-family:var(--font-mono); font-size:.7rem; background:var(--panel); border:1px solid var(--contour); color:var(--text); padding:.2rem .3rem;">
+        <option value="webview">Built-in</option>
+        <option value="system_default">System default</option>
+      </select>
+    </div>
+    <button id="openDataSync" style="all:unset; padding:.65rem .9rem; cursor:pointer; display:flex; justify-content:space-between; border-bottom:1px solid var(--contour); color:var(--text);">Data &amp; sync <span class="arrow">↗</span></button>
+    <div style="padding:.65rem .9rem; display:flex; justify-content:space-between; align-items:center;">
+      <span style="font-size:.78rem;">Network (ngrok)</span>
+      <span id="networkStatus" style="font-size:.68rem; opacity:.7;">checking…</span>
+    </div>
+  </div>
+</div>
+
+<!-- Misc panel -->
+<div id="miscPanel" class="panel">
+  <header><span>Misc</span><button id="closeMisc">close ✕</button></header>
+  <div id="miscList" style="display:flex; flex-direction:column;">
+    <div style="padding:.65rem .9rem; font-size:.72rem; opacity:.6;">Loading…</div>
+  </div>
+</div>
+
+<!-- Customize panel -->
+<div id="customize" class="panel">
+  <header><button class="back" id="backToSettings">‹ back</button><span>Customize</span><button id="closeCustomize">✕</button></header>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Taskbar dock side</span><span class="car">▸</span></div>
+    <div class="cz-body">
+      <div class="pos-grid">
+        <button data-dock="top">Top</button>
+        <button data-dock="bottom">Bottom</button>
+        <button data-dock="left" class="active">Left</button>
+        <button data-dock="right">Right</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Icons &amp; labels</span><span class="car">▸</span></div>
+    <div class="cz-body">
+      <div class="cz-row"><label>Show text labels</label><input type="checkbox" id="labelToggle"></div>
+      <div class="cz-row"><label>Icon colour (inactive)</label><input type="color" data-var="--icon" value="#8A93A0"></div>
+      <div class="cz-row"><label>Icon colour (active)</label><input type="color" data-var="--icon-active" id="iconActiveColor" value="#C89A55"></div>
+      <div class="cz-row"><label>Start button colour</label><input type="color" data-var="--start-icon" value="#C89A55"></div>
+      <div class="cz-row"><label>Start button accent</label><input type="color" data-var="--start-icon-accent" value="#C89A55"></div>
+      <div class="cz-row"><label>Start button icon</label><label class="filebtn">Upload <input type="file" accept="image/*" id="startIconUpload" style="display:none"></label></div>
+      <div class="cz-row"><label>Library icon</label><label class="filebtn">Upload <input type="file" accept="image/*" class="icon-upload" data-app="library" style="display:none"></label></div>
+      <div class="cz-row"><label>Territories icon</label><label class="filebtn">Upload <input type="file" accept="image/*" class="icon-upload" data-app="territories" style="display:none"></label></div>
+      <div class="cz-row"><label>ARG Map icon</label><label class="filebtn">Upload <input type="file" accept="image/*" class="icon-upload" data-app="argmap" style="display:none"></label></div>
+    </div>
+  </div>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Colour theme</span><span class="car">▸</span></div>
+    <div class="cz-body">
+      <div class="theme-swatches">
+        <div class="theme-opt"><button style="background:#171B21; border-color:#C89A55" data-theme="darkchart" title="Dark chart"></button><span>Dark chart</span></div>
+        <div class="theme-opt"><button style="background:#1c1c1c" data-theme="pyterm" title="Python terminal"></button><span>Python</span></div>
+        <div class="theme-opt"><button style="background:#EDE4D3" data-theme="parchment" title="Parchment"></button><span>Parchment</span></div>
+        <div class="theme-opt"><button style="background:#1c2430" data-theme="midnight" title="Midnight chart"></button><span>Midnight</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Backgrounds</span><span class="car">▸</span></div>
+    <div class="cz-body">
+
+      <div class="cz-block">
+        <div class="cz-block-title">Window</div>
+        <div class="cz-row"><label>Colour</label><input type="color" class="grad-a" data-var="--parchment" data-target="bg" value="#EDE4D3"></div>
+        <label class="cz-check-row"><input type="checkbox" class="grad-check" data-target="bg"> Use a gradient</label>
+        <div class="mini-body" data-grad-body="bg">
+          <div class="cz-row"><label>Gradient to</label><input type="color" class="grad-b" data-target="bg" value="#D8C9A9"></div>
+        </div>
+      </div>
+
+      <div class="cz-block">
+        <div class="cz-block-title">Taskbar</div>
+        <div class="cz-row"><label>Colour</label><input type="color" class="grad-a" data-var="--panel2" data-target="taskbar" value="#D8C9A9"></div>
+        <label class="cz-check-row"><input type="checkbox" class="grad-check" data-target="taskbar"> Use a gradient</label>
+        <div class="mini-body" data-grad-body="taskbar">
+          <div class="cz-row"><label>Gradient to</label><input type="color" class="grad-b" data-target="taskbar" value="#B8863B"></div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Text &amp; accent</span><span class="car">▸</span></div>
+    <div class="cz-body">
+      <div class="cz-row"><label>Text colour</label><input type="color" data-var="--text" value="#23201B"></div>
+      <div class="cz-row"><label>Accent / highlight</label><input type="color" data-var="--gold" value="#B8863B"></div>
+    </div>
+  </div>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Borders</span><span class="car">▸</span></div>
+    <div class="cz-body">
+      <div class="cz-row"><label>Colour</label><input type="color" id="borderMaster" value="#23201B"></div>
+      <label class="cz-check-row"><input type="checkbox" id="borderLink" checked> Link window edges &amp; divider lines</label>
+      <div class="mini-toggle" id="borderIndivToggle">set them individually instead ▸</div>
+      <div class="mini-body" id="borderIndivBody">
+        <div class="cz-row"><label>Window edges</label><input type="color" data-var="--ink" id="borderPrimary" value="#23201B"></div>
+        <div class="cz-row"><label>Divider lines</label><input type="color" data-var="--contour" id="borderDivider" value="#C9BCA0"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Background image</span><span class="car">▸</span></div>
+    <div class="cz-body">
+      <label class="filebtn">Choose image <input type="file" id="bgFile" accept="image/*" style="display:none"></label>
+      <div class="cz-row"><label>Opacity</label><input type="range" id="bgOpacity" min="0" max="100" value="100"></div>
+    </div>
+  </div>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Button image</span><span class="car">▸</span></div>
+    <div class="cz-body">
+      <label class="filebtn">Choose image <input type="file" id="btnFile" accept="image/*" style="display:none"></label>
+      <div class="cz-row"><label>Opacity</label><input type="range" id="btnOpacity" min="0" max="100" value="100"></div>
+    </div>
+  </div>
+
+  <div class="cz-section">
+    <div class="cz-head"><span>Font style</span><span class="car">▸</span></div>
+    <div class="cz-body">
+      <div class="cz-row">
+        <label>Type set</label>
+        <select id="fontSelect">
+          <option value="serif">Cartographer (serif + mono)</option>
+          <option value="mono">Field Log (all mono)</option>
+          <option value="sans">Modern (sans + mono)</option>
+        </select>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Profile panel -->
+<div id="profilePanel" class="panel">
+  <header><span>Profile</span><button id="closeProfile">close ✕</button></header>
+  <div class="profile-body">
+    <div class="avatar-row">
+      <div id="avatarCircle">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#23201B" stroke-width="1.6"><circle cx="12" cy="8" r="3.4"/><path d="M5 20c0-3.5 3-6 7-6s7 2.5 7 6"/></svg>
+        <input type="file" id="avatarFile" accept="image/*" style="display:none">
+      </div>
+      <div class="name-field">
+        <label>Explorer name</label>
+        <input type="text" id="nameInput" placeholder="Unnamed">
+      </div>
+    </div>
+
+    <div class="pf-section" data-pf="wallet">
+      <div class="pf-btn"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="1"/><circle cx="16" cy="12.5" r="1.4"/></svg>Wallet<span class="car">▸</span></div>
+      <div class="pf-content">
+        <div style="display:flex; gap:.4rem;">
+          <input type="text" id="walletInput" placeholder="0x…" style="flex:1; font-family:var(--font-mono); font-size:.68rem; background:var(--panel); border:1px solid var(--contour); padding:.35rem .5rem; color:var(--text);">
+          <button class="filebtn" id="walletSaveBtn">Save</button>
+        </div>
+        <div id="walletStatus" style="margin-top:.4rem; opacity:.65;">Saved here so owned-symbol highlighting works without reconnecting each session.</div>
+      </div>
+    </div>
+
+    <div class="pf-section" data-pf="favourites">
+      <div class="pf-btn"><svg viewBox="0 0 24 24"><path d="M12 2l2.9 6.5 7.1.6-5.4 4.7 1.7 6.9L12 17l-6.3 3.7 1.7-6.9L2 8.1l7.1-.6z"/></svg>Favourites<span class="car">▸</span></div>
+      <div class="pf-content">
+        <div class="scroll-list" id="favouritesList">Loading…</div>
+        <div style="margin-top:.6rem; font-size:.62rem; opacity:.6; line-height:1.6;">
+          Add from the terminal — <span style="color:var(--gold)">fav &lt;id&gt;</span> to add, <span style="color:var(--gold)">fav</span> to list, <span style="color:var(--gold)">fav remove &lt;id&gt;</span> to remove.
+        </div>
+        <div class="cz-block-title" style="margin-top:.9rem;">Terminal themes</div>
+        <div class="scroll-list" id="favThemesList">Loading…</div>
+      </div>
+    </div>
+
+    <div class="pf-section" data-pf="trail">
+      <div class="pf-btn"><svg viewBox="0 0 24 24"><circle cx="5" cy="19" r="2"/><circle cx="11" cy="13" r="2"/><circle cx="17" cy="7" r="2"/></svg>Trail<span class="car">▸</span></div>
+      <div class="pf-content"><div class="scroll-list" id="trailList">Nothing viewed yet this session.</div></div>
+    </div>
+
+    <div class="pf-section open" data-pf="themes">
+      <div class="pf-btn"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/></svg>Terminal themes<span class="car">▸</span></div>
+      <div class="pf-content">
+        <div class="scroll-list" id="savedThemes">Loading…</div>
+        <div style="display:flex; gap:.4rem; margin-top:.6rem;">
+          <input type="text" id="themeNameInput" placeholder="Theme name" style="flex:1; font-family:var(--font-mono); font-size:.68rem; background:var(--panel); border:1px solid var(--contour); padding:.35rem .5rem; color:var(--text);">
+          <button class="filebtn" id="saveThemeBtn">+ Save</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const startBtn = document.getElementById('startBtn');
+const startMenu = document.getElementById('startMenu');
+const settingsPanel = document.getElementById('settingsPanel');
+const customize = document.getElementById('customize');
+const profilePanel = document.getElementById('profilePanel');
+const miscPanel = document.getElementById('miscPanel');
+const allFlyouts = [startMenu, settingsPanel, customize, profilePanel, miscPanel];
+
+function positionFlyout(el){
+  const r = startBtn.getBoundingClientRect();
+  const dock = document.getElementById('hubWindow').dataset.dock;
+  if(dock==='left'){ el.style.left=(r.right+6)+'px'; el.style.top=r.top+'px'; el.style.right='auto'; el.style.bottom='auto'; }
+  if(dock==='right'){ el.style.right=(window.innerWidth-r.left+6)+'px'; el.style.top=r.top+'px'; el.style.left='auto'; el.style.bottom='auto'; }
+  if(dock==='top'){ el.style.top=(r.bottom+6)+'px'; el.style.left=r.left+'px'; el.style.right='auto'; el.style.bottom='auto'; }
+  if(dock==='bottom'){ el.style.bottom=(window.innerHeight-r.top+6)+'px'; el.style.left=r.left+'px'; el.style.right='auto'; el.style.top='auto'; }
+}
+function closeAll(except){ allFlyouts.forEach(f=>{ if(f!==except) f.classList.remove('open'); }); }
+
+startBtn.addEventListener('click', ()=>{
+  const willOpen = !startMenu.classList.contains('open');
+  closeAll();
+  if(willOpen){ startMenu.classList.add('open'); positionFlyout(startMenu); }
+});
+document.getElementById('openSettings').addEventListener('click', ()=>{
+  closeAll(); settingsPanel.classList.add('open'); positionFlyout(settingsPanel);
+  if(window.pywebview) {
+    window.pywebview.api.get_library_mode().then(mode=>{
+      document.getElementById('libraryModeSelect').value = mode;
+    });
+    window.pywebview.api.list_available_browsers().then(browsers=>{
+      const select = document.getElementById('libraryModeSelect');
+      const current = select.value;
+      // Base options (webview + system default) stay; add one per detected browser
+      select.querySelectorAll('option[data-detected]').forEach(o=>o.remove());
+      browsers.forEach(name=>{
+        const opt = document.createElement('option');
+        opt.value = name; opt.textContent = name; opt.dataset.detected = '1';
+        select.appendChild(opt);
+      });
+      select.value = current;
+    });
+    const networkStatus = document.getElementById('networkStatus');
+    networkStatus.textContent = 'checking…';
+    window.pywebview.api.is_ngrok_running().then(running=>{
+      networkStatus.textContent = running ? 'Running' : 'Not running';
+      networkStatus.style.color = running ? 'var(--gold)' : '';
+    });
+  }
+});
+document.getElementById('libraryModeSelect').addEventListener('change', e=>{
+  if(window.pywebview) window.pywebview.api.set_library_mode(e.target.value);
+});
+document.getElementById('openDataSync').addEventListener('click', ()=>{
+  if(window.pywebview) window.pywebview.api.open_settings_file();
+});
+document.getElementById('openGuide').addEventListener('click', ()=>{
+  closeAll();
+  if(window.pywebview) window.pywebview.api.open_window('quickguide.html');
+  // NOTE: quickguide.html doesn't exist yet (per the request that added
+  // this link) — this will 404 inside the opened window until it's added.
+});
+document.getElementById('openMisc').addEventListener('click', ()=>{
+  closeAll(); miscPanel.classList.add('open'); positionFlyout(miscPanel);
+  renderMiscList();
+});
+document.getElementById('closeMisc').addEventListener('click', ()=> miscPanel.classList.remove('open'));
+
+function renderMiscList(){
+  const list = document.getElementById('miscList');
+  if(!window.pywebview){ list.innerHTML = '<div style="padding:.65rem .9rem; font-size:.72rem; opacity:.6;">(preview — no hub API here)</div>'; return; }
+  window.pywebview.api.list_misc_files().then(files=>{
+    if(!files.length){ list.innerHTML = '<div style="padding:.65rem .9rem; font-size:.72rem; opacity:.6;">Nothing in misc/ yet.</div>'; return; }
+    list.innerHTML = files.map(f=>{
+      const hint = f.ext === '.py' ? 'run ▸' : f.ext === '.html' ? 'open ▸' : 'open ↗';
+      return `<button class="row misc-row" data-filename="${f.filename.replace(/"/g,'&quot;')}" style="all:unset; padding:.65rem .9rem; cursor:pointer; display:flex; justify-content:space-between; border-bottom:1px solid var(--contour); color:var(--text); font-size:.75rem;">${f.filename}<span class="arrow">${hint}</span></button>`;
+    }).join('');
+    list.querySelectorAll('.misc-row').forEach(row=>{
+      row.addEventListener('click', ()=>{
+        window.pywebview.api.open_misc_item(row.dataset.filename);
+      });
+    });
+  });
+}
+document.getElementById('openProfile').addEventListener('click', ()=>{
+  closeAll(); profilePanel.classList.add('open'); positionFlyout(profilePanel);
+  if(window.pywebview){
+    window.pywebview.api.get_wallet_address().then(addr=>{
+      document.getElementById('walletInput').value = addr;
+    });
+    window.pywebview.api.get_explorer_name().then(name=>{
+      document.getElementById('nameInput').value = name || '';
+    });
+    window.pywebview.api.get_avatar().then(dataUrl=>{
+      if(!dataUrl) return;
+      const circle = document.getElementById('avatarCircle');
+      circle.style.backgroundImage = `url(${dataUrl})`;
+      const svg = circle.querySelector('svg');
+      if(svg) svg.style.display = 'none';
+    });
+  }
+  renderFavourites();
+  renderTrail();
+  renderThemePresets();
+});
+document.getElementById('nameInput').addEventListener('blur', e=>{
+  if(window.pywebview) window.pywebview.api.set_explorer_name(e.target.value.trim());
+});
+
+// ── Favourites (added via the terminal's 'fav'/'favourites' command) ──
+function renderFavourites(){
+  const el = document.getElementById('favouritesList');
+  if(!el) return;
+  el.innerHTML = '';
+  if(!window.pywebview){ el.textContent = '(preview — no hub API here)'; return; }
+  window.pywebview.api.get_favourites().then(favs=>{
+    const list = Array.isArray(favs) ? favs : [];
+    el.innerHTML = '';
+    if(!list.length){ el.textContent = "No favourites yet — add one with 'fav <id>' in the terminal."; return; }
+    list.forEach(f=>{
+      const row = document.createElement('div');
+      row.className = 'saved-theme-row';
+      const span = document.createElement('span');
+      span.textContent = `[${f.id}] ${f.name}`;
+      const openBtn = document.createElement('button');
+      openBtn.textContent = 'open';
+      openBtn.addEventListener('click', ()=> window.pywebview.api.open_symbol_viewer(f.id));
+      const removeBtn = document.createElement('button');
+      removeBtn.textContent = '×';
+      removeBtn.addEventListener('click', ()=> window.pywebview.api.remove_favourite(f.id).then(renderFavourites));
+      row.append(span, openBtn, removeBtn);
+      el.appendChild(row);
+    });
+  });
+}
+// Called by the terminal's 'fav' command (see the IIFE near the bottom of
+// this file) so the panel doesn't show stale data if it's already open.
+window.syncFavouritesUI = renderFavourites;
+
+// ── Trail (same history as the terminal's 'trail' command) ────────────
+function renderTrail(){
+  const el = document.getElementById('trailList');
+  if(!el) return;
+  el.innerHTML = '';
+  const history = (window.hubTerminal && window.hubTerminal.getCommandHistory()) || [];
+  if(!history.length){ el.textContent = 'Nothing viewed yet this session.'; return; }
+  history.forEach((c, i)=>{
+    const row = document.createElement('div');
+    row.className = 'saved-theme-row';
+    row.style.cursor = 'pointer';
+    const span = document.createElement('span');
+    span.textContent = `${i + 1}. ${c}`;
+    row.appendChild(span);
+    row.title = 'Click to run again';
+    row.addEventListener('click', ()=>{
+      if(window.hubTerminal) window.hubTerminal.runCommand(c);
+      document.getElementById('cmdInput').focus();
+    });
+    el.appendChild(row);
+  });
+}
+document.getElementById('walletSaveBtn').addEventListener('click', ()=>{
+  const val = document.getElementById('walletInput').value.trim();
+  const status = document.getElementById('walletStatus');
+  if(window.pywebview){
+    window.pywebview.api.set_wallet_address(val).then(()=>{
+      status.textContent = 'Saved.';
+      setTimeout(()=>{ status.textContent = 'Saved here so owned-symbol highlighting works without reconnecting each session.'; }, 1800);
+    });
+  }
+});
+document.getElementById('openCustomize').addEventListener('click', ()=>{ closeAll(); customize.classList.add('open'); positionFlyout(customize); });
+document.getElementById('backToSettings').addEventListener('click', ()=>{ closeAll(); settingsPanel.classList.add('open'); positionFlyout(settingsPanel); });
+document.getElementById('closeSettings').addEventListener('click', ()=> settingsPanel.classList.remove('open'));
+document.getElementById('closeCustomize').addEventListener('click', ()=> customize.classList.remove('open'));
+document.getElementById('closeProfile').addEventListener('click', ()=> profilePanel.classList.remove('open'));
+
+document.addEventListener('click', e=>{
+  const insideAny = allFlyouts.some(f=>f.contains(e.target)) || startBtn.contains(e.target);
+  if(!insideAny) closeAll();
+});
+
+document.querySelectorAll('.cz-head').forEach(h=>{
+  h.addEventListener('click', ()=> h.parentElement.classList.toggle('open'));
+});
+
+document.querySelectorAll('.pos-grid button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.pos-grid button').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.getElementById('hubWindow').dataset.dock = b.dataset.dock;
+  });
+});
+
+document.getElementById('labelToggle').addEventListener('change', e=>{
+  document.body.classList.toggle('show-labels', e.target.checked);
+});
+
+// ── Custom taskbar icon uploads ───────────────────────────────────
+document.querySelectorAll('.icon-upload').forEach(inp=>{
+  inp.addEventListener('change', e=>{
+    const f = e.target.files[0]; if(!f) return;
+    const seg = document.querySelector(`.seg[data-app="${inp.dataset.app}"]`);
+    seg.querySelector('svg').remove();
+    const img = document.createElement('img');
+    img.className='custom-icon'; img.src = URL.createObjectURL(f);
+    seg.prepend(img);
+  });
+});
+document.getElementById('startIconUpload').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const oldSvg = startBtn.querySelector('svg'); if(oldSvg) oldSvg.remove();
+  const oldImg = startBtn.querySelector('img.custom-icon'); if(oldImg) oldImg.remove();
+  const img = document.createElement('img');
+  img.className = 'custom-icon';
+  img.style.width = '24px'; img.style.height = '24px'; img.style.objectFit = 'contain';
+  img.src = URL.createObjectURL(f);
+  startBtn.appendChild(img);
+});
+
+// ── Theme presets ──────────────────────────────────────────────────
+const themes = {
+  darkchart: {'--parchment':'#171B21','--panel':'#1C2129','--panel2':'#20262F','--text':'#D9D4C6','--ink':'#333C47','--contour':'#2A323C','--gold':'#C89A55','--icon':'#8A93A0','--icon-active':'#C89A55','--start-icon':'#C89A55','--start-icon-accent':'#C89A55'},
+  pyterm:    {'--parchment':'#1c1c1c','--panel':'#161616','--panel2':'#202020','--text':'#4fe25c','--ink':'#333','--contour':'#333','--gold':'#4fe25c','--icon':'#3f7a47','--icon-active':'#4fe25c','--start-icon':'#4fe25c','--start-icon-accent':'#4fe25c'},
+  parchment: {'--parchment':'#EDE4D3','--panel':'#E2D6BE','--panel2':'#D8C9A9','--text':'#23201B','--ink':'#23201B','--contour':'#C9BCA0','--gold':'#B8863B','--icon':'#A9A08C','--icon-active':'#B8863B','--start-icon':'#B8863B','--start-icon-accent':'#B8863B'},
+  midnight:  {'--parchment':'#1c2430','--panel':'#232c3a','--panel2':'#2b3648','--text':'#e7e1d2','--ink':'#3d4a5e','--contour':'#3d4a5e','--gold':'#c9a24a','--icon':'#5c6b82','--icon-active':'#c9a24a','--start-icon':'#c9a24a','--start-icon-accent':'#c9a24a'}
+};
+// Debounced save of whatever the live Customize values currently are, so
+// the hub reopens looking the way it was left instead of always booting
+// back into the hardcoded default theme. currentThemeValues/THEME_VARS
+// are defined further down, but this only ever runs later (on an actual
+// theme change), well after that's initialized.
+let themeSaveTimer = null;
+function schedulePersistTheme(){
+  clearTimeout(themeSaveTimer);
+  themeSaveTimer = setTimeout(()=>{
+    if(window.pywebview) window.pywebview.api.set_current_theme(currentThemeValues());
+  }, 500);
+}
+function applyTheme(t, opts){
+  Object.entries(t).forEach(([k,v])=> document.documentElement.style.setProperty(k,v));
+  document.getElementById('scrollback').style.background='';
+  document.getElementById('taskbar').style.background='';
+  if(!opts || opts.persist !== false) schedulePersistTheme();
+}
+document.querySelectorAll('.theme-swatches button').forEach(b=>{
+  b.addEventListener('click', ()=> applyTheme(themes[b.dataset.theme]));
+});
+
+// ── Plain colour pickers (text, accent) ─────────────────────────────
+document.querySelectorAll('.cz-row > input[type=color][data-var]:not(.grad-a)').forEach(inp=>{
+  inp.addEventListener('input', ()=>{
+    document.documentElement.style.setProperty(inp.dataset.var, inp.value);
+    schedulePersistTheme();
+  });
+});
+
+// ── Gradient-capable rows (window bg, taskbar bg) ────────────────────
+const gradTargets = {
+  bg:      { el: () => document.getElementById('scrollback'), varName:'--parchment' },
+  taskbar: { el: () => document.getElementById('taskbar'), varName:'--panel2' }
+};
+document.querySelectorAll('.grad-check').forEach(chk=>{
+  chk.addEventListener('change', ()=>{
+    const t = chk.dataset.target;
+    document.querySelector(`.mini-body[data-grad-body="${t}"]`).classList.toggle('open', chk.checked);
+    updateSurface(t);
+    schedulePersistTheme();
+  });
+});
+document.querySelectorAll('.grad-a').forEach(inp=>{
+  inp.addEventListener('input', ()=>{
+    document.documentElement.style.setProperty(gradTargets[inp.dataset.target].varName, inp.value);
+    updateSurface(inp.dataset.target);
+    schedulePersistTheme();
+  });
+});
+document.querySelectorAll('.grad-b').forEach(inp=>{
+  inp.addEventListener('input', ()=>{ updateSurface(inp.dataset.target); schedulePersistTheme(); });
+});
+function updateSurface(target){
+  const cfg = gradTargets[target];
+  const on = document.querySelector(`.grad-check[data-target="${target}"]`).checked;
+  const a = document.querySelector(`.grad-a[data-target="${target}"]`).value;
+  const b = document.querySelector(`.grad-b[data-target="${target}"]`).value;
+  cfg.el().style.background = on ? `linear-gradient(135deg, ${a}, ${b})` : '';
+}
+
+// ── Border colours: link/unlink ───────────────────────────────────
+const borderMaster = document.getElementById('borderMaster');
+const borderLink = document.getElementById('borderLink');
+const borderPrimary = document.getElementById('borderPrimary');
+const borderDivider = document.getElementById('borderDivider');
+borderMaster.addEventListener('input', ()=>{
+  document.documentElement.style.setProperty('--ink', borderMaster.value);
+  document.documentElement.style.setProperty('--contour', borderMaster.value);
+  borderPrimary.value = borderMaster.value; borderDivider.value = borderMaster.value;
+  schedulePersistTheme();
+});
+document.getElementById('borderIndivToggle').addEventListener('click', ()=>{
+  document.getElementById('borderIndivBody').classList.toggle('open');
+});
+borderPrimary.addEventListener('input', ()=>{ document.documentElement.style.setProperty('--ink', borderPrimary.value); schedulePersistTheme(); });
+borderDivider.addEventListener('input', ()=>{ document.documentElement.style.setProperty('--contour', borderDivider.value); schedulePersistTheme(); });
+
+// ── Background image ────────────────────────────────────────────────
+// The image sits on #terminal itself, behind #scrollback's own background.
+// The Opacity slider used to fade #scrollback's overall element opacity —
+// which faded the TEXT right along with it, so at any low setting the
+// image effectively read as sitting "in front of" barely-visible text.
+// It now only fades scrollback's background-color (via its alpha), so the
+// image can show through while the text stays fully legible no matter
+// what the slider is set to.
+function hexToRgba(hex, alpha){
+  const h = (hex || '').replace('#', '').trim();
+  const full = h.length === 3 ? h.split('').map(c => c + c).join('') : h;
+  const n = parseInt(full, 16);
+  if(full.length !== 6 || Number.isNaN(n)) return `rgba(0,0,0,${alpha})`; // shouldn't happen — safe fallback
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+document.getElementById('bgFile').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  const term = document.getElementById('terminal');
+  term.style.backgroundImage = `url(${URL.createObjectURL(f)})`;
+  term.style.backgroundSize = 'cover';
+});
+document.getElementById('bgOpacity').addEventListener('input', e=>{
+  const parchment = getComputedStyle(document.documentElement).getPropertyValue('--parchment');
+  document.getElementById('scrollback').style.background = hexToRgba(parchment, e.target.value / 100);
+});
+
+document.getElementById('fontSelect').addEventListener('change', e=>{
+  const sets = {
+    serif: {'--font-display':"Iowan Old Style, 'Palatino Linotype', Georgia, serif", '--font-mono':"ui-monospace, 'SF Mono', Consolas, Menlo, monospace"},
+    mono:  {'--font-display':"ui-monospace, 'SF Mono', Consolas, Menlo, monospace", '--font-mono':"ui-monospace, 'SF Mono', Consolas, Menlo, monospace"},
+    sans:  {'--font-display':"-apple-system, 'Segoe UI', Roboto, sans-serif", '--font-mono':"ui-monospace, 'SF Mono', Consolas, Menlo, monospace"}
+  };
+  Object.entries(sets[e.target.value]).forEach(([k,v])=> document.documentElement.style.setProperty(k,v));
+});
+
+// ── Profile: accordion buttons ─────────────────────────────────────
+document.querySelectorAll('.pf-btn').forEach(btn=>{
+  btn.addEventListener('click', ()=> btn.closest('.pf-section').classList.toggle('open'));
+});
+
+// ── Profile: avatar upload ────────────────────────────────────────
+// Resized client-side to a fixed 128x128 square before it's ever handed
+// to hub.py, so hub_settings.json doesn't balloon from a full-resolution
+// photo — a raw upload was never persisted before (URL.createObjectURL
+// is a throwaway blob URL, gone on reload); this is what actually saves it.
+function resizeImageToDataUrl(file, size){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = reject;
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = reject;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = size; canvas.height = size;
+        const ctx = canvas.getContext('2d');
+        const scale = Math.max(size / img.width, size / img.height);
+        const w = img.width * scale, h = img.height * scale;
+        ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
+        resolve(canvas.toDataURL('image/jpeg', 0.85));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+document.getElementById('avatarCircle').addEventListener('click', ()=> document.getElementById('avatarFile').click());
+document.getElementById('avatarFile').addEventListener('change', e=>{
+  const f = e.target.files[0]; if(!f) return;
+  resizeImageToDataUrl(f, 128).then(dataUrl=>{
+    const circle = document.getElementById('avatarCircle');
+    circle.style.backgroundImage = `url(${dataUrl})`;
+    const svg = circle.querySelector('svg');
+    if(svg) svg.style.display = 'none';
+    if(window.pywebview) window.pywebview.api.set_avatar(dataUrl);
+  }).catch(()=>{ /* unreadable/corrupt image file — leave the avatar as-is */ });
+});
+
+// ── Profile: Terminal themes (real persistence — captures the actual
+// CSS custom property values Customize sets, not just a decorative
+// swatch, and saves them to hub_settings.json via hub.py). ────────────
+const THEME_VARS = ['--parchment','--panel','--panel2','--text','--ink','--contour','--gold','--icon','--icon-active','--start-icon','--start-icon-accent'];
+function currentThemeValues(){
+  const styles = getComputedStyle(document.documentElement);
+  const values = {};
+  THEME_VARS.forEach(v => { values[v] = styles.getPropertyValue(v).trim(); });
+  return values;
+}
+function renderThemePresets(){
+  if(!window.pywebview) return;
+  window.pywebview.api.get_theme_presets().then(presets=>{
+    const list = Array.isArray(presets) ? presets : [];
+
+    const mainEl = document.getElementById('savedThemes');
+    if(mainEl){
+      mainEl.innerHTML = '';
+      const defaultRow = document.createElement('div');
+      defaultRow.className = 'saved-theme-row';
+      const swatch = document.createElement('span');
+      swatch.className = 'st-swatch'; swatch.style.background = '#EDE4D3';
+      const label = document.createElement('span');
+      label.textContent = 'Parchment (default)';
+      const useBtn = document.createElement('button');
+      useBtn.textContent = 'use';
+      useBtn.addEventListener('click', ()=> applyTheme(themes.parchment));
+      defaultRow.append(swatch, label, useBtn);
+      mainEl.appendChild(defaultRow);
+    }
+
+    const favEl = document.getElementById('favThemesList');
+    if(favEl){ favEl.innerHTML = ''; if(!list.length) favEl.textContent = 'No saved themes yet.'; }
+
+    list.forEach(preset=>{
+      [mainEl, favEl].forEach(el=>{
+        if(!el) return;
+        const row = document.createElement('div');
+        row.className = 'saved-theme-row';
+        const swatch = document.createElement('span');
+        swatch.className = 'st-swatch';
+        swatch.style.background = (preset.values && preset.values['--gold']) || '#C89A55';
+        const label = document.createElement('span');
+        label.textContent = preset.name;
+        const useBtn = document.createElement('button');
+        useBtn.textContent = 'use';
+        useBtn.addEventListener('click', ()=> applyTheme(preset.values));
+        row.append(swatch, label, useBtn);
+        if(el === mainEl){
+          const delBtn = document.createElement('button');
+          delBtn.textContent = '×';
+          delBtn.addEventListener('click', ()=> window.pywebview.api.delete_theme_preset(preset.name).then(renderThemePresets));
+          row.appendChild(delBtn);
+        }
+        el.appendChild(row);
+      });
+    });
+  });
+}
+document.getElementById('saveThemeBtn').addEventListener('click', ()=>{
+  if(!window.pywebview) return;
+  const nameInput = document.getElementById('themeNameInput');
+  const name = (nameInput.value || '').trim() || `Custom ${Date.now()}`;
+  window.pywebview.api.save_theme_preset(name, currentThemeValues()).then(()=>{
+    nameInput.value = '';
+    renderThemePresets();
+  });
+});
+
+// ── Taskbar: spawn or focus the real app windows ──────────────────
+const APP_PATHS = {
+  library: 'http://127.0.0.1:5000/',
+  territories: 'http://127.0.0.1:8000/launcher.html',
+  argmap: 'maps/picker.html'
+};
+document.querySelectorAll('.seg[data-app]').forEach(seg=>{
+  seg.addEventListener('click', ()=>{
+    const app = seg.dataset.app;
+    if(window.pywebview){
+      window.pywebview.api.spawn_or_focus(app, APP_PATHS[app]).then(result=>{
+        document.querySelectorAll('.seg[data-app]').forEach(s=>s.classList.remove('active'));
+        seg.classList.remove('inactive'); seg.classList.add('active');
+      });
+    } else {
+      // Standalone preview (opened outside the hub) — no window to spawn
+      console.log(`Would open ${app} at ${APP_PATHS[app]} (running outside the hub)`);
+    }
+  });
+});
+
+// ── Title bar dot: closes the whole system, not just this window ───
+document.getElementById('closeDot').addEventListener('click', ()=>{
+  if(window.pywebview){
+    window.pywebview.api.quit_app();
+  } else {
+    console.log('Would quit the whole hub (running outside the hub)');
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════
+// Terminal command parser + Minecraft-style autocomplete
+// ══════════════════════════════════════════════════════════════════════
+// Everything below reads from a single COMMANDS registry — adding a new
+// command means adding one entry there, nothing else needs to change.
+// Handlers call into hub.py the same way the taskbar segments above do
+// (window.pywebview.api.*), with the same standalone-preview fallback.
+//
+// Vocabulary ported from the old standalone terminal tool (run.py):
+// open/read/unfold/list/n/b behave like their old counterparts, adapted
+// to open real hub windows (or print inline) instead of a raw CLI.
+// 'view' was renamed to 'read' per instruction — it no longer works as
+// a command name, only 'read' does ('manifest' is kept as an alias since
+// that was the original request's wording for the same feature).
+
+(function(){
+
+  const scrollback = document.getElementById('scrollback');
+  const cmdInput = document.getElementById('cmdInput');
+  const suggestBox = document.getElementById('suggestBox');
+
+  // ── Scrollback output helpers ─────────────────────────────────────
+  function escapeHtml(s){
+    const d = document.createElement('div');
+    d.textContent = String(s);
+    return d.innerHTML;
+  }
+  function printLine(html, cls){
+    const div = document.createElement('div');
+    if(cls) div.className = cls;
+    div.innerHTML = html;
+    scrollback.appendChild(div);
+    scrollback.scrollTop = scrollback.scrollHeight;
+  }
+  function printEcho(text){ printLine(`<span class="gold">&gt;</span> ${escapeHtml(text)}`); }
+  function printSys(text){ printLine(escapeHtml(text), 'sys'); }
+
+  // ── Boot / intro animation ──────────────────────────────────────────
+  // Faithful to the old standalone tool's print_intro(): a loading glyph,
+  // two lines picked at random and typed out character-by-character, then
+  // a divider and the banner. Runs once on boot and again on the 'intro'
+  // command.
+  function sleep(ms){ return new Promise(res => setTimeout(res, ms)); }
+
+  function flickerPrint(text, cls){
+    return new Promise(resolve => {
+      const div = document.createElement('div');
+      if(cls) div.className = cls;
+      scrollback.appendChild(div);
+      let i = 0;
+      (function step(){
+        if(i >= text.length){ resolve(); return; }
+        div.textContent += text[i++];
+        scrollback.scrollTop = scrollback.scrollHeight;
+        setTimeout(step, 10 + Math.random() * 20);
+      })();
+    });
+  }
+
+  const INTRO_LINES = [
+    'floyel interface initializing…',
+    'waking archived memory…',
+    'booting static light chamber…',
+    'aligning signal threads…',
+    'loading floyel hub…',
+    'symbols are awakening…'
+  ];
+
+  function pickTwo(pool){
+    const copy = pool.slice();
+    const picked = [];
+    for(let n = 0; n < 2; n++){
+      const idx = Math.floor(Math.random() * copy.length);
+      picked.push(copy.splice(idx, 1)[0]);
+    }
+    return picked;
+  }
+
+  async function playIntro(){
+    printLine('⠁⠂⠄⠆⠖⠶⠾⠿', 'sys');
+    const [first, second] = pickTwo(INTRO_LINES);
+    await flickerPrint(first, 'gold');
+    await flickerPrint(second, 'gold');
+    printLine('───────────────────────────────', 'sys');
+    printLine('<span class="gold">"symbols"</span> by Flōyél — Hub Terminal');
+    printSys('Type a command to get started.');
+  }
+
+  // ── Call into hub.py, same pattern as the taskbar segments' click
+  // handler above: use the real API if present, otherwise log what
+  // WOULD happen so the shell still previews standalone. ─────────────
+  function callHub(method, ...args){
+    if(window.pywebview && window.pywebview.api && typeof window.pywebview.api[method] === 'function'){
+      return Promise.resolve(window.pywebview.api[method](...args));
+    }
+    console.log(`Would call hub API ${method}(${args.map(a=>JSON.stringify(a)).join(', ')}) (running outside the hub)`);
+    return Promise.resolve(null);
+  }
+
+  function openApp(app){
+    const seg = document.querySelector(`.seg[data-app="${app}"]`);
+    return callHub('spawn_or_focus', app, APP_PATHS[app]).then(result=>{
+      if(seg){
+        document.querySelectorAll('.seg[data-app]').forEach(s=>s.classList.remove('active'));
+        seg.classList.remove('inactive'); seg.classList.add('active');
+      }
+      return result;
+    });
+  }
+
+  function usageError(name, cmd){
+    return new Error(`Usage: ${name}${cmd.args ? ' ' + cmd.args : ''}`);
+  }
+
+  // ── Symbol cache, used for "open/read/unfold <id>" tab-completion and
+  // by the 'list' family of commands. Refreshed on terminal focus, and
+  // again by showSymbolList() every time 'list' actually runs. ────────
+  let symbolCache = [];
+  function refreshSymbolCache(){
+    return callHub('list_symbols').then(list => {
+      if(Array.isArray(list)) symbolCache = list;
+    });
+  }
+
+  // ── 'list' state — ported from the old tool's CURRENT_PAGE / TOTAL_PAGES
+  // / LIST_ACTIVE globals, scoped to this closure instead. ─────────────
+  const ITEMS_PER_PAGE = 24;
+  let listActive = false;
+  let listPage = 1;
+  let listTotalPages = 1;
+
+  function showSymbolList(page, showAll){
+    return callHub('list_symbols').then(list => {
+      const all = Array.isArray(list) ? list : [];
+      symbolCache = all;
+      const total = all.length;
+      listTotalPages = Math.max(1, Math.ceil(total / ITEMS_PER_PAGE));
+      if(showAll){
+        listActive = false;
+        printSys(`=== SYMBOL LIST — all ${total} symbols ===`);
+        all.forEach(printSymbolRow);
+        return;
+      }
+      listActive = true;
+      listPage = Math.min(Math.max(1, page), listTotalPages);
+      const start = (listPage - 1) * ITEMS_PER_PAGE;
+      const end = Math.min(start + ITEMS_PER_PAGE, total);
+      printSys(`=== SYMBOL LIST — page ${listPage} of ${listTotalPages} (showing ${total ? start + 1 : 0}–${end} of ${total}) ===`);
+      all.slice(start, end).forEach(printSymbolRow);
+      printSys(`Page with 'n' / 'b', or jump with 'list.<page>' / 'list.all'.`);
+    });
+  }
+  function printSymbolRow(s){
+    printLine(`[<span class="gold">${escapeHtml(s.id)}</span>] ${escapeHtml(s.name)}`);
+    printLine(`&nbsp;&nbsp;&nbsp;&nbsp;→ <span class="gold">read ${escapeHtml(s.id)}</span> | <span class="gold">open ${escapeHtml(s.id)}</span>`, 'sys');
+  }
+  function pageList(dir){
+    if(!listActive) return new Error("Type 'list' first.");
+    const target = listPage + dir;
+    if(target < 1 || target > listTotalPages) return new Error(`Already on the ${dir > 0 ? 'last' : 'first'} page.`);
+    return showSymbolList(target, false);
+  }
+
+  // ── Manifest formatting for 'read' — mirrors the old tool's
+  // view_symbol() field-by-field printout, defensively (manifest.json
+  // shape isn't fully confirmed, so every field falls back to 'N/A'
+  // instead of throwing on a missing one). ─────────────────────────────
+  function formatManifest(id, data){
+    if(!data || data.error) return new Error((data && data.error) || `Couldn't read symbol ${id}.`);
+    const number = data.number || id;
+    const lines = [
+      `→ Reading symbol ${number}…`,
+      `[${number}] ${data.title || 'Untitled'}`,
+      `Filetype: ${data.filetype ?? 'N/A'}`,
+      `Date: ${data.date ?? 'N/A'}`,
+      `Frame Data: ${data.frames ?? 'N/A'}`,
+      `Size: ${data.size ?? 'N/A'}`,
+      `Dimension: ${data.dimension ?? 'N/A'}`,
+      `Timeline: ${data.timeline ?? 'N/A'}`,
+      `Info: ${data.info ?? 'N/A'}`
+    ];
+    if(data.element_code && typeof data.element_code === 'object'){
+      lines.push('', 'Element Code:');
+      Object.values(data.element_code).forEach(row => {
+        if(Array.isArray(row)) lines.push(row.map(cell => `[ ${cell} ]`).join('  '));
+      });
+    }
+    return lines.join('\n');
+  }
+
+  // ── Command registry ────────────────────────────────────────────────
+  // run(args) may return a string (printed as a system line, '\n'-split),
+  // an Error (printed as an error line), a Promise of either, or nothing.
+  // complete(partial) is optional — return candidate strings for the
+  // argument currently being typed.
+  const COMMANDS = {
+    open: {
+      aliases: [],
+      args: '<symbol-id>',
+      desc: "Open a symbol's viewer directly (viewer.html, or its gif/mp3 if it has none), bypassing the Library UI.",
+      complete: () => symbolCache.map(s => s.id),
+      run: (args) => {
+        const id = args[0];
+        if(!id) return usageError('open', COMMANDS.open);
+        return callHub('open_symbol_viewer', id).then(result =>
+          (result && result.error) ? new Error(result.error) : `Opening symbol ${id}…`
+        );
+      }
+    },
+    read: {
+      aliases: ['manifest'],
+      args: '<symbol-id>',
+      desc: "Read a symbol's manifest info directly, printed right here (was 'view' in the old tool).",
+      complete: () => symbolCache.map(s => s.id),
+      run: (args) => {
+        const id = args[0];
+        if(!id) return usageError('read', COMMANDS.read);
+        return callHub('get_symbol_manifest', id).then(data => formatManifest(id, data));
+      }
+    },
+    unfold: {
+      aliases: [],
+      args: '<symbol-id>',
+      desc: "Open a symbol's raw media file (gif/mp3) directly, even if it also has a viewer.html.",
+      complete: () => symbolCache.map(s => s.id),
+      run: (args) => {
+        const id = args[0];
+        if(!id) return usageError('unfold', COMMANDS.unfold);
+        return callHub('unfold_symbol', id).then(result =>
+          (result && result.error) ? new Error(result.error) : `Unfolding symbol ${id}…`
+        );
+      }
+    },
+    fav: {
+      aliases: ['favourites'],
+      args: '[<symbol-id> | remove <symbol-id>]',
+      desc: 'List your favourites, add one (fav <id>), or remove one (fav remove <id>).',
+      complete: () => ['remove', ...symbolCache.map(s => s.id)],
+      run: (args) => {
+        if(!args.length){
+          return callHub('get_favourites').then(favs => {
+            const list = Array.isArray(favs) ? favs : [];
+            if(!list.length) return "No favourites yet. Add one with 'fav <id>'.";
+            return list.map(f => `[${f.id}] ${f.name}`).join('\n');
+          });
+        }
+        if(args[0].toLowerCase() === 'remove'){
+          const id = args[1];
+          if(!id) return new Error('Usage: fav remove <symbol-id>');
+          return callHub('remove_favourite', id).then(() => {
+            syncFavouritesUI();
+            return `Removed ${id} from favourites.`;
+          });
+        }
+        const id = args[0];
+        return callHub('add_favourite', id).then(result => {
+          if(result && result.error) return new Error(result.error);
+          syncFavouritesUI();
+          return `Added ${id} to favourites.`;
+        });
+      }
+    },
+    list: {
+      aliases: [],
+      args: '[.page | .all]',
+      desc: 'List symbols, 24 per page. Use list.<page> or list.all to jump straight to one.',
+      run: () => showSymbolList(1, false)
+    },
+    n: {
+      aliases: [],
+      args: '',
+      desc: 'Next page, once a list is showing.',
+      run: () => pageList(1)
+    },
+    b: {
+      aliases: [],
+      args: '',
+      desc: 'Previous page, once a list is showing.',
+      run: () => pageList(-1)
+    },
+    library: {
+      aliases: ['lib'],
+      args: '',
+      desc: 'Open or focus the Library window.',
+      run: () => openApp('library').then(() => 'Opening Library…')
+    },
+    territories: {
+      aliases: ['terr'],
+      args: '',
+      desc: 'Open or focus the Territories window.',
+      run: () => openApp('territories').then(() => 'Opening Territories…')
+    },
+    home: {
+      aliases: [],
+      args: '',
+      desc: 'Return to the main view.',
+      run: () => { printSys('bzz…'); return COMMANDS.help.run([]); }
+    },
+    intro: {
+      aliases: [],
+      args: '',
+      desc: 'Redisplay the animated terminal intro.',
+      run: () => playIntro()
+    },
+    trail: {
+      aliases: [],
+      args: '',
+      desc: 'Show your command history this session.',
+      run: () => commandHistory.length
+        ? commandHistory.map((c, i) => `${i + 1}. ${c}`).join('\n')
+        : '(No steps recorded yet.)'
+    },
+    clear: {
+      aliases: ['cls'],
+      args: '',
+      desc: 'Clear the terminal scrollback.',
+      run: () => { scrollback.innerHTML = ''; }
+    },
+    help: {
+      aliases: ['?'],
+      args: '[command]',
+      desc: 'List available commands, or show detail for one.',
+      run: (args) => {
+        if(args[0]){
+          const entry = resolveCommand(args[0]);
+          if(!entry) return new Error(`Unknown command '${args[0]}'.`);
+          return `${entry.canonical}${entry.cmd.args ? ' ' + entry.cmd.args : ''}  —  ${entry.cmd.desc}`;
+        }
+        return Object.keys(COMMANDS).sort().map(name => {
+          const c = COMMANDS[name];
+          return `${name}${c.args ? ' ' + c.args : ''}  —  ${c.desc}`;
+        }).join('\n');
+      }
+    }
+  };
+
+  const commandHistory = [];
+
+  // name/alias -> {canonical, cmd}
+  const COMMAND_LOOKUP = {};
+  Object.entries(COMMANDS).forEach(([name, cmd])=>{
+    COMMAND_LOOKUP[name] = {canonical: name, cmd};
+    (cmd.aliases || []).forEach(a => COMMAND_LOOKUP[a] = {canonical: name, cmd});
+  });
+  function resolveCommand(token){ return COMMAND_LOOKUP[(token || '').toLowerCase()]; }
+  function allCommandNames(){
+    const names = new Set();
+    Object.entries(COMMANDS).forEach(([name, cmd])=>{
+      names.add(name);
+      (cmd.aliases || []).forEach(a => names.add(a));
+    });
+    return [...names];
+  }
+
+  // ── Tokenizer: whitespace-separated, "quoted strings" kept intact ──
+  function tokenize(input){
+    const tokens = [];
+    const re = /"([^"]*)"|'([^']*)'|(\S+)/g;
+    let m;
+    while((m = re.exec(input)) !== null){
+      tokens.push(m[1] !== undefined ? m[1] : (m[2] !== undefined ? m[2] : m[3]));
+    }
+    return tokens;
+  }
+
+  function reportErr(err){ printSys(`Error: ${err && err.message ? err.message : err}`); }
+
+  // ── Dispatch ─────────────────────────────────────────────────────
+  function runCommand(raw){
+    const text = raw.trim();
+    if(!text) return;
+    printEcho(raw);
+    commandHistory.push(text);
+
+    const [name, ...args] = tokenize(text);
+
+    // "list.2" / "list.all" keep the old tool's dotted sub-forms as a
+    // single token, which the normal name+args split below won't catch —
+    // special-case just this one shape before falling through.
+    const listDotted = /^list\.(\w+)$/i.exec(name);
+    if(listDotted){
+      const suffix = listDotted[1];
+      if(suffix.toLowerCase() === 'all') showSymbolList(1, true).catch(reportErr);
+      else {
+        const pageNum = parseInt(suffix, 10);
+        if(Number.isNaN(pageNum)) printSys('Invalid page number.');
+        else showSymbolList(pageNum, false).catch(reportErr);
+      }
+      return;
+    }
+
+    const entry = resolveCommand(name);
+    if(!entry){
+      printSys(`Unknown command: '${name}'. Type 'help' for a list.`);
+      return;
+    }
+    Promise.resolve()
+      .then(() => entry.cmd.run(args))
+      .then(result => {
+        if(result instanceof Error) printSys(result.message);
+        else if(result) String(result).split('\n').forEach(line => printSys(line));
+      })
+      .catch(reportErr);
+  }
+
+  // ── Autocomplete: Minecraft-style suggestion strip, cycled with Tab ─
+  let suggestions = [];
+  let suggestIndex = -1;
+
+  function currentTokenRange(){
+    const val = cmdInput.value;
+    const pos = cmdInput.selectionStart;
+    let start = pos;
+    while(start > 0 && val[start - 1] !== ' ') start--;
+    let end = pos;
+    while(end < val.length && val[end] !== ' ') end++;
+    const before = val.slice(0, start).trim();
+    const tokenIndex = before ? before.split(/\s+/).length : 0;
+    return {start, end, tokenIndex};
+  }
+
+  function computeSuggestions(){
+    const val = cmdInput.value;
+    const {start, end, tokenIndex} = currentTokenRange();
+    const partial = val.slice(start, end).toLowerCase();
+    let candidates = [];
+    if(tokenIndex === 0){
+      candidates = allCommandNames().filter(n => n.toLowerCase().startsWith(partial));
+    } else {
+      const firstToken = tokenize(val.slice(0, start))[0] || '';
+      const entry = resolveCommand(firstToken);
+      if(entry && typeof entry.cmd.complete === 'function'){
+        candidates = entry.cmd.complete(partial).filter(c => c.toLowerCase().startsWith(partial));
+      }
+    }
+    suggestions = [...new Set(candidates)].sort();
+    suggestIndex = -1;
+    renderSuggestions();
+  }
+
+  function renderSuggestions(){
+    if(!suggestions.length){
+      suggestBox.classList.remove('open');
+      suggestBox.innerHTML = '';
+      return;
+    }
+    suggestBox.innerHTML = suggestions.map((s, i) =>
+      `<span class="sug${i === suggestIndex ? ' active' : ''}" data-i="${i}">${escapeHtml(s)}</span>`
+    ).join('') + `<span class="sug-hint">tab to cycle</span>`;
+    suggestBox.classList.add('open');
+  }
+
+  function applySuggestion(i){
+    const {start, end} = currentTokenRange();
+    const val = cmdInput.value;
+    const word = suggestions[i];
+    cmdInput.value = val.slice(0, start) + word + val.slice(end);
+    const newPos = start + word.length;
+    cmdInput.setSelectionRange(newPos, newPos);
+    suggestIndex = i;
+    renderSuggestions();
+  }
+
+  function dismissSuggestions(){
+    suggestions = []; suggestIndex = -1; renderSuggestions();
+  }
+
+  suggestBox.addEventListener('mousedown', e=>{
+    // mousedown (not click) so this fires before the input's blur handler
+    const el = e.target.closest('.sug');
+    if(!el) return;
+    e.preventDefault();
+    applySuggestion(Number(el.dataset.i));
+    cmdInput.focus();
+  });
+
+  cmdInput.addEventListener('input', computeSuggestions);
+  cmdInput.addEventListener('focus', ()=>{ refreshSymbolCache(); computeSuggestions(); });
+
+  cmdInput.addEventListener('keydown', e=>{
+    if(e.key === 'Tab'){
+      e.preventDefault();
+      if(!suggestions.length) computeSuggestions();
+      if(!suggestions.length) return;
+      const dir = e.shiftKey ? -1 : 1;
+      let next = suggestIndex + dir;
+      if(next >= suggestions.length) next = 0;
+      if(next < 0) next = suggestions.length - 1;
+      applySuggestion(next);
+      return;
+    }
+    if(e.key === 'Escape'){
+      if(suggestions.length) dismissSuggestions();
+      else cmdInput.blur();
+      return;
+    }
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      const text = cmdInput.value;
+      cmdInput.value = '';
+      dismissSuggestions();
+      runCommand(text);
+      return;
+    }
+  });
+
+  document.addEventListener('click', e=>{
+    if(!suggestBox.contains(e.target) && e.target !== cmdInput) dismissSuggestions();
+  });
+
+  refreshSymbolCache();
+
+  // ── Boot sequence ────────────────────────────────────────────────
+  // Restore whatever theme was last saved (silently — no need to
+  // re-persist what we just loaded), play the animated intro, and focus
+  // the input immediately so typing can start without clicking anything.
+  //
+  // window.pywebview.api isn't guaranteed to exist yet at the moment this
+  // script runs — pywebview injects it asynchronously and fires a
+  // 'pywebviewready' event once it's actually attached. Checking for it
+  // once, synchronously, right here was silently missing it (no error,
+  // just quietly skipped) — this waits for whichever happens, the ready
+  // event or (if it already fired before we got here) the immediate check.
+  function whenHubReady(cb){
+    if(window.pywebview && window.pywebview.api){ cb(); return; }
+    window.addEventListener('pywebviewready', cb, {once: true});
+  }
+  whenHubReady(() => {
+    window.pywebview.api.get_current_theme().then(saved=>{
+      if(saved) applyTheme(saved, {persist: false});
+    }).catch(()=>{});
+  });
+  playIntro();
+  cmdInput.focus();
+
+  // ── Bridge for code outside this closure (the Profile panel's Trail
+  // section, which re-runs a history entry on click). ──────────────────
+  window.hubTerminal = {
+    runCommand,
+    getCommandHistory: () => commandHistory.slice()
+  };
+
+})();
+</script>
+</body>
+</html>

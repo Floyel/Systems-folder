@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>3D Viewer</title>
+<style>
+  html,body{margin:0;padding:0;height:100%;background:#1a1a20;color:#ddd;font-family:Arial,sans-serif;overflow:hidden;}
+  #stage{position:fixed;inset:0;}
+
+  #fxGlow{position:absolute;inset:0;}
+  #fxInvert{position:absolute;inset:0;}
+  #glCanvas{width:100%;height:100%;display:block;touch-action:none;cursor:grab;}
+  #glCanvas:active{cursor:grabbing;}
+
+  #dropHint{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;font-size:15px;color:#666;letter-spacing:1px;text-align:center;}
+  #dropHint.small{font-size:12px;}
+  body.dragging #dropHint{color:#8fd6a8;}
+  body.dragging #stage::after{content:"";position:fixed;inset:0;border:3px dashed #5fcf89;pointer-events:none;}
+
+  #topBtns{position:fixed;top:14px;right:14px;z-index:2100;display:flex;gap:8px;}
+  #topBtns button{padding:8px 12px;border:1px solid #444;border-radius:8px;background:#22222a;color:#ccc;cursor:pointer;font-size:12px;letter-spacing:1px;transition:background .15s,color .15s;}
+  #topBtns button:hover{background:#2e2e38;}
+  #topBtns button.active{background:#5fcf89;color:#132018;border-color:#5fcf89;}
+  #soundToast{position:fixed;top:56px;right:14px;background:rgba(0,0,0,0.8);color:white;padding:6px 10px;border-radius:8px;opacity:0;transition:opacity 200ms;z-index:2100;font-size:11px;}
+  #soundToast.show{opacity:1;}
+
+  /* ── OPTIONS PANEL ── */
+  #panel{position:fixed;top:0;right:0;bottom:0;width:250px;background:#22222a;border-left:1px solid #34343e;overflow-y:auto;padding:56px 16px 30px;box-sizing:border-box;font-size:12px;z-index:2000;transform:translateX(100%);transition:transform .22s ease;}
+  #panel.open{transform:translateX(0);}
+  .group{margin-bottom:18px;padding-bottom:14px;border-bottom:1px solid #2e2e38;}
+  .group:last-child{border-bottom:none;}
+  .group-label{font-size:10px;color:#888;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:8px;}
+  .row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;gap:8px;}
+  .row label{color:#bbb;flex-shrink:0;}
+  .row input[type=range]{flex:1;accent-color:#5fcf89;}
+  .row select{background:#2e2e38;color:#ddd;border:1px solid #444;border-radius:4px;padding:3px 5px;font-size:11px;}
+  .valtag{color:#5fcf89;font-family:'Courier New',monospace;font-size:10px;min-width:34px;text-align:right;}
+  button.btn{width:100%;padding:7px 0;margin-bottom:6px;background:#2e2e38;color:#ccc;border:1px solid #444;border-radius:6px;cursor:pointer;font-size:11px;transition:background .15s,color .15s;}
+  button.btn:hover{background:#3a3a48;}
+  .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
+  .toggle{width:34px;height:18px;border-radius:9px;background:#3a3a44;position:relative;cursor:pointer;flex-shrink:0;transition:background .15s;}
+  .toggle.on{background:#5fcf89;}
+  .toggle .knob{position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#eee;transition:left .15s;}
+  .toggle.on .knob{left:18px;}
+
+  #loadedName{font-size:10px;color:#666;word-break:break-all;margin-top:4px;}
+  #pageTitle{position:fixed;top:0;left:0;right:0;z-index:1900;text-align:center;padding:14px 0 6px;pointer-events:none;}
+  #pageNumber{font-size:11px;color:#7a7a8a;letter-spacing:2px;font-family:'Courier New',monospace;}
+  #pageTitleText{font-size:24px;color:#5fcf89;letter-spacing:3px;margin-top:2px;font-family:'Courier New',monospace;}
+
+  #statBar{position:fixed;left:0;bottom:0;padding:5px 10px;font-size:10px;color:#666;font-family:'Courier New',monospace;background:rgba(0,0,0,0.3);z-index:1500;}
+
+  /* ── FLOATING EFFECTS + PLAYBACK COLUMN (always visible, outside Options) ── */
+  #fxColumn{position:fixed;right:14px;top:50%;transform:translateY(-50%);z-index:1800;display:flex;flex-direction:column;align-items:stretch;width:58px;}
+  .fx-square{width:58px;height:44px;border:1px solid #444;background:#22222a;color:#888;cursor:pointer;font-size:13px;font-weight:bold;transition:background .15s,color .15s;display:flex;flex-direction:column;align-items:center;justify-content:center;}
+  .fx-square:first-child{border-radius:10px 10px 0 0;}
+  .fx-square.last{border-radius:0 0 10px 10px;}
+  .fx-square.panel-open{background:#3a2d44;color:#bf95cb;border-color:#bf95cb;}
+  .fx-square.has-effect{color:#f0c8ff;box-shadow:inset 0 0 0 2px #bf95cb;}
+  .fx-square.active-i{background:#bf95cb;color:#1a1a22;}
+  .fx-square.active{background:#5fcf89;color:#132018;}
+  .fx-sub{font-size:8px;opacity:.7;margin-top:1px;}
+  .fx-sep{height:1px;background:#34343e;}
+
+  .mode-grid{display:grid;grid-template-columns:1fr 1fr;border-radius:10px 10px 0 0;overflow:hidden;}
+  .mode-btn{width:100%;height:32px;border:1px solid #444;background:#22222a;color:#888;cursor:pointer;font-size:12px;font-weight:bold;transition:background .15s,color .15s;}
+  .mode-btn.active{background:#5fcf89;color:#132018;border-color:#5fcf89;}
+
+  .fx-popout{position:absolute;right:66px;background:#1e1e28;border:1px solid #555;border-radius:10px;padding:10px 12px;width:190px;display:none;text-align:left;}
+  .fx-popout.open{display:block;}
+  .swatch-row{display:flex;gap:6px;margin-bottom:8px;align-items:center;flex-wrap:wrap;}
+  .swatch{width:20px;height:20px;border-radius:50%;border:2px solid transparent;cursor:pointer;transition:border .12s,transform .1s;font-size:10px;display:flex;align-items:center;justify-content:center;}
+  .swatch:hover{transform:scale(1.15);}
+  .swatch.selected{border:2px solid white;}
+  .slider-label{font-size:11px;color:#aaa;margin-bottom:4px;}
+
+  #tapBtn{width:58px;padding:8px 0;margin-top:10px;border:2px solid #5fcf89;border-radius:8px;background:#22222a;color:#5fcf89;cursor:pointer;font-size:10px;letter-spacing:.5px;}
+  .play3-row{display:flex;gap:4px;margin-top:8px;}
+  .play3-row button{flex:1;padding:8px 0;background:#22222a;color:#ccc;border:1px solid #444;border-radius:6px;cursor:pointer;font-size:12px;}
+  .play3-row button.active{background:#5fcf89;color:#132018;border-color:#5fcf89;}
+
+  /* ── MANIFEST DRAWER — exact port of the GIF viewer's markup/CSS ── */
+  #manifestSidebar{
+    position:fixed;left:0;right:0;bottom:0;height:310px;
+    background:#1e1e28;border-top:1px solid #3a3a48;
+    overflow-x:auto;overflow-y:hidden;
+    transform:translateY(100%);transition:transform 0.28s ease;
+    z-index:2050;font-family:'Courier New',monospace;
+    display:flex;flex-direction:row;align-items:stretch;gap:0;
+  }
+  #manifestSidebar.open{transform:translateY(0);}
+
+  #drawerTabBar{position:absolute;top:7px;right:10px;display:flex;gap:4px;z-index:2060;pointer-events:auto;}
+  .drawer-tab-btn{width:24px;height:24px;border:1px solid #3a3a48;border-radius:5px;background:#2a2a36;color:#5a5a6a;cursor:pointer;font-size:13px;display:flex;align-items:center;justify-content:center;transition:background 0.15s,color 0.15s,border 0.15s;padding:0;}
+  .drawer-tab-btn:hover{color:#bf95cb;border-color:#bf95cb;}
+  .drawer-tab-btn.active{background:#3a2d44;color:#bf95cb;border-color:#bf95cb;}
+
+  #manifestTabContent{display:none;flex-direction:row;align-items:stretch;flex-shrink:0;}
+  #manifestTabContent.visible{display:flex;}
+  #metaTabContent{display:none;flex-direction:row;align-items:stretch;width:100%;flex-shrink:0;}
+  #metaTabContent.visible{display:flex;}
+  #metaNotMinted{display:flex;padding:30px 20px;font-size:11px;color:#4a4a5a;text-align:center;letter-spacing:1px;align-items:center;justify-content:center;width:100%;}
+
+  #mCol1{min-width:200px;max-width:240px;padding:14px 16px;border-right:1px solid #3a3a48;display:flex;flex-direction:column;gap:0;flex-shrink:0;overflow-y:auto;}
+  #mSidebarNumber{font-size:10px;color:#7a7a8a;letter-spacing:2px;}
+  #mSidebarTitle{font-size:18px;color:#5fcf89;letter-spacing:3px;margin-top:2px;margin-bottom:10px;}
+  .ms-section-label{font-size:9px;letter-spacing:2px;color:#7a7a8a;text-transform:uppercase;margin-bottom:6px;}
+  .ms-fields{display:grid;grid-template-columns:1fr 1fr;gap:5px 10px;}
+  .ms-field{display:flex;flex-direction:column;gap:1px;}
+  .ms-key{font-size:9px;color:#7a7a8a;letter-spacing:1px;text-transform:uppercase;}
+  .ms-val{font-size:11px;color:#c8c8d8;}
+  #msNotesSection{display:none;margin-top:10px;}
+  #msNotes{font-size:11px;color:#7a7a8a;line-height:1.6;font-style:italic;}
+
+  #mCol2{padding:14px 16px;flex-shrink:0;}
+  #msElementGrid{display:grid;grid-template-columns:repeat(4,1fr);grid-template-rows:repeat(5,48px);gap:3px;width:240px;flex-shrink:0;}
+  .ms-cell{background:#2a2a36;border:1px solid #3a3a48;border-radius:4px;padding:4px 5px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;gap:1px;overflow:hidden;}
+  .ms-cell.empty{background:transparent;border-color:#2a2a36;}
+  .ms-arrow{font-size:10px;color:#bf95cb;line-height:1;}
+  .ms-shape{font-size:9px;color:#7a7a8a;line-height:1;}
+  .ms-name{font-size:9px;color:#c8c8d8;line-height:1.2;}
+  .ms-elem-name{font-size:8px;color:#5a5a6a;line-height:1;margin-top:1px;letter-spacing:0.5px;}
+
+  #manifestToggle{position:fixed;bottom:0;left:15%;width:64px;height:22px;border:1px solid #3a3a48;border-bottom:none;border-radius:6px 6px 0 0;background:#1e1e28;color:#7a7a8a;cursor:pointer;font-size:11px;letter-spacing:1px;display:flex;align-items:center;justify-content:center;z-index:2051;transition:color .15s,bottom .28s ease;}
+  #manifestToggle:hover{color:#bf95cb;}
+  #manifestToggle.active{color:#bf95cb;bottom:310px;}
+
+
+  /* ── PRESET PANEL ── */
+  #presetPanel{position:fixed;top:0;left:0;bottom:0;width:230px;background:#1e1e28;border-right:1px solid #3a3a48;display:flex;flex-direction:column;transform:translateX(-100%);transition:transform .28s ease;z-index:2050;font-family:'Courier New',monospace;}
+  #presetPanel.open{transform:translateX(0);}
+  #presetHeader{padding:14px;border-bottom:1px solid #3a3a48;display:flex;justify-content:space-between;font-size:12px;color:#ddd;}
+  #presetHeader span:first-child{color:#bf95cb;letter-spacing:1px;}
+  #presetCount{color:#7a7a8a;}
+  #presetList{flex:1;overflow-y:auto;padding:6px 0;}
+  .preset-item{display:flex;align-items:center;justify-content:space-between;padding:0 8px;}
+  .preset-load{flex:1;text-align:left;background:none;border:none;color:#c8c8d8;padding:8px 6px;cursor:pointer;font-size:11px;font-family:'Courier New',monospace;display:flex;flex-direction:column;align-items:flex-start;}
+  .preset-load:hover{background:#2a2a38;color:#bf95cb;}
+  .preset-sub{font-size:9px;color:#6a6a7a;margin-top:2px;}
+  .preset-del{background:none;border:none;color:#5a5a6a;cursor:pointer;font-size:14px;padding:0 6px;}
+  .preset-del:hover{color:#cf6f6f;}
+  #presetSaveArea{padding:10px 12px;border-top:1px solid #3a3a48;}
+  #presetNameInput{width:100%;box-sizing:border-box;background:#14141c;border:1px solid #3a3a48;border-radius:5px;color:#ddd;padding:6px 8px;font-size:11px;margin-bottom:6px;font-family:'Courier New',monospace;}
+  #presetNameInput:focus{border-color:#bf95cb;outline:none;}
+  #presetSaveBtn{width:100%;padding:7px 0;background:#2e2e38;border:1px solid #3a3a48;border-radius:5px;color:#c8c8d8;cursor:pointer;font-size:11px;}
+  #presetSaveBtn:hover{background:#3a2d44;border-color:#bf95cb;}
+  #presetToggle{position:fixed;top:10%;left:0;width:22px;height:64px;border:1px solid #3a3a48;border-left:none;border-radius:0 6px 6px 0;background:#1e1e28;color:#7a7a8a;cursor:pointer;font-size:11px;display:flex;align-items:center;justify-content:center;z-index:2051;transition:color .15s,left .28s ease;}
+  #presetToggle:hover{color:#bf95cb;}
+  #presetToggle.active{color:#bf95cb;left:230px;}
+</style>
+</head>
+<body>
+
+<div id="pageTitle">
+  <div id="pageNumber"></div>
+  <div id="pageTitleText">0000 - symbol</div>
+</div>
+
+<div id="stage">
+  <div id="fxInvert"><div id="fxGlow">
+    <canvas id="glCanvas"></canvas>
+  </div></div>
+  <div id="dropHint">Drop a .glb / .gltf file here<br><span class="small">or add ?model=yourfile.glb to the URL</span></div>
+</div>
+
+<div id="statBar">— no model loaded —</div>
+
+<div id="topBtns">
+  <button id="soundBtn">&#127925;</button>
+  <button id="optionsTab">&#9776; OPTIONS</button>
+</div>
+<div id="soundToast"></div>
+
+<button id="manifestToggle" title="Toggle manifest">&#9135; &#9135;</button>
+<div id="manifestSidebar">
+  <div id="drawerTabBar">
+    <button class="drawer-tab-btn active" id="tabManifestBtn" title="Manifest">&#9776;</button>
+    <button class="drawer-tab-btn" id="tabMetaBtn" title="Metadata">&#9670;</button>
+  </div>
+
+  <div id="manifestTabContent" class="visible">
+    <div id="mCol1">
+      <div id="mSidebarNumber"></div>
+      <div id="mSidebarTitle">0000 - symbol</div>
+      <div class="ms-section-label">info</div>
+      <div class="ms-fields" id="msFields"></div>
+      <div id="msNotesSection">
+        <div class="ms-section-label">notes</div>
+        <div id="msNotes"></div>
+      </div>
+    </div>
+    <div id="mCol2">
+      <div class="ms-section-label">element code</div>
+      <div id="msElementGrid"></div>
+    </div>
+  </div>
+
+  <div id="metaTabContent">
+    <div id="metaNotMinted">not minted — no chain data yet</div>
+  </div>
+</div>
+
+<button id="presetToggle">&#9776;</button>
+<div id="presetPanel">
+  <div id="presetHeader"><span>Presets</span><span id="presetCount"></span></div>
+  <div id="presetList"></div>
+  <div id="presetSaveArea">
+    <input id="presetNameInput" type="text" placeholder="preset name..." maxlength="24"/>
+    <button id="presetSaveBtn">&#8679; Save current</button>
+  </div>
+</div>
+
+<!-- FLOATING EFFECTS + PLAYBACK — always visible, independent of Options -->
+<div id="fxColumn">
+  <div style="position:relative;">
+    <div class="fx-popout" id="gPanel">
+      <div class="swatch-row" id="glowSwatches">
+        <div class="swatch" data-color="red" style="background:red;"></div>
+        <div class="swatch" data-color="#00dd00" style="background:#00dd00;"></div>
+        <div class="swatch" data-color="#4488ff" style="background:#4488ff;"></div>
+        <div class="swatch" data-color="white" style="background:white;"></div>
+        <div class="swatch" data-color="" style="background:#333;border:1px dashed #888;color:#888;">&#10005;</div>
+      </div>
+      <div class="slider-label">Size <span id="glowSizeVal">12</span>px</div>
+      <input type="range" id="glowSize" min="1" max="50" value="12" step="1" style="width:100%;accent-color:#bf95cb;"/>
+    </div>
+    <div class="fx-popout" id="fPanel">
+      <div class="swatch-row" id="filterSwatches">
+        <div class="swatch" data-color="cyan" style="background:cyan;"></div>
+        <div class="swatch" data-color="magenta" style="background:magenta;"></div>
+        <div class="swatch" data-color="yellow" style="background:yellow;"></div>
+        <div class="swatch" data-color="" style="background:#333;border:1px dashed #888;color:#888;">&#10005;</div>
+      </div>
+      <div class="slider-label">Opacity <span id="filterOpVal">40</span></div>
+      <input type="range" id="filterOpacity" min="25" max="50" value="40" step="1" style="width:100%;accent-color:#bf95cb;"/>
+    </div>
+
+    <div class="mode-grid">
+      <button class="mode-btn" id="wireBtn" title="Wireframe">W</button>
+      <button class="mode-btn" id="fresnelBtn" title="Fresnel / X-ray rim">X</button>
+      <button class="mode-btn" id="toonBtn" title="Toon shading">T</button>
+      <button class="mode-btn" id="pointsBtn" title="Point cloud">&#8226;</button>
+    </div>
+    <div class="fx-sep"></div>
+    <button class="fx-square" id="gBtn"><div>G</div><div class="fx-sub">glow</div></button>
+    <div class="fx-sep"></div>
+    <button class="fx-square" id="iBtn"><div>I</div><div class="fx-sub">invert</div></button>
+    <div class="fx-sep"></div>
+    <button class="fx-square last" id="fBtn"><div>F</div><div class="fx-sub">filter</div></button>
+  </div>
+
+  <button id="tapBtn">&#9675; TAP &#9675;</button>
+
+  <div class="play3-row">
+    <button id="playBackBtn" title="Play backward">&#9664;</button>
+    <button id="pauseResetBtn" class="active" title="Pause / reset">&#9208;</button>
+    <button id="playFwdBtn" title="Play forward">&#9654;</button>
+  </div>
+</div>
+
+<div id="panel">
+
+  <div class="group">
+    <div class="group-label">File</div>
+    <button class="btn" id="fullscreenBtn">Fullscreen</button>
+    <div id="loadedName">nothing loaded</div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">Playback</div>
+    <div class="row">
+      <label>Loop mode</label>
+      <select id="loopMode">
+        <option value="repeat">Repeat</option>
+        <option value="once">Play once</option>
+        <option value="pingpong">Ping-pong</option>
+      </select>
+    </div>
+    <div class="row"><label>Speed</label><input type="range" id="speedSlider" min="0.1" max="3" step="0.1" value="1"/><span class="valtag" id="speedVal">1.0x</span></div>
+    <div class="row"><label>Timeline</label><input type="range" id="scrubSlider" min="0" max="1" step="0.001" value="0"/></div>
+  </div>
+
+  <div class="group">
+    <div class="group-label">Camera &amp; Display</div>
+    <button class="btn" id="resetCamBtn">Reset view</button>
+
+    <div class="toggle-row"><label>Auto-rotate (orbit)</label><div class="toggle" id="autoRotToggle"><div class="knob"></div></div></div>
+    <div class="row"><label>Orbit speed</label><input type="range" id="rotSpeedSlider" min="0.2" max="8" step="0.2" value="2"/></div>
+
+    <div class="toggle-row" style="margin-top:8px;"><label>Turntable</label><div class="toggle" id="turntableToggle"><div class="knob"></div></div></div>
+    <div class="toggle-row"><label>&nbsp;&nbsp;Reverse direction</label><div class="toggle" id="turntableRevToggle"><div class="knob"></div></div></div>
+    <div class="row"><label>&nbsp;&nbsp;Spin speed</label><input type="range" id="turntableSpeedSlider" min="0.1" max="4" step="0.1" value="1"/></div>
+
+    <div class="toggle-row" style="margin-top:8px;"><label>Bob (up/down)</label><div class="toggle" id="bobToggle"><div class="knob"></div></div></div>
+    <div class="row"><label>&nbsp;&nbsp;Height</label><input type="range" id="bobHeightSlider" min="1" max="30" value="8" step="1"/></div>
+    <div class="row"><label>&nbsp;&nbsp;Speed</label><input type="range" id="bobSpeedSlider" min="0.2" max="5" value="1.5" step="0.1"/></div>
+
+    <div class="toggle-row" style="margin-top:8px;"><label>Breathe (scale)</label><div class="toggle" id="breatheToggle"><div class="knob"></div></div></div>
+    <div class="row"><label>&nbsp;&nbsp;Amount</label><input type="range" id="breatheAmtSlider" min="1" max="25" value="8" step="1"/></div>
+    <div class="row"><label>&nbsp;&nbsp;Speed</label><input type="range" id="breatheSpeedSlider" min="0.2" max="5" value="1.2" step="0.1"/></div>
+  </div>
+
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+/* ================================================================
+   HARD-CODE YOUR FILE HERE
+   ----------------------------------------------------------------
+   Put your exported .glb (and, if you want sound, a same-named
+   .mp3) in the SAME FOLDER as this HTML file, then put the exact
+   filename (no extension) between the quotes below.
+
+   Example: if your file is "0012 - rolojij.glb", set:
+     const HARDCODED_BASE = "0012 - rolojij";
+
+   Leave it as an empty string "" to keep using drag-and-drop
+   instead — a URL's ?model= parameter and drag-and-drop both
+   still override this if present.
+   ================================================================ */
+const HARDCODED_BASE = "0333 - uNa";
+
+const canvas = document.getElementById('glCanvas');
+const statBar = document.getElementById('statBar');
+const dropHint = document.getElementById('dropHint');
+
+const scene = new THREE.Scene();
+scene.background = null;
+
+const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.01, 2000);
+const DEFAULT_CAM_POS = new THREE.Vector3(2.2, 1.5, 3.2);
+camera.position.copy(DEFAULT_CAM_POS);
+
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(devicePixelRatio);
+renderer.setClearColor(0x000000, 0);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const LEFT_BIAS_PX = 150;
+function resize() {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.setViewOffset(innerWidth + LEFT_BIAS_PX * 2, innerHeight, LEFT_BIAS_PX * 2, 0, innerWidth, innerHeight);
+  camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize);
+resize();
+
+scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+const keyLight = new THREE.DirectionalLight(0xffffff, 1.2);
+keyLight.position.set(3, 4, 5);
+scene.add(keyLight);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.enableZoom = true;
+controls.enablePan = true;
+controls.minDistance = 0.05;
+controls.maxDistance = 100;
+
+let mixer = null, actions = [];
+let clock = new THREE.Clock();
+let paused = true;
+let speed = 1.0;
+let direction = 0;
+let loopMode = 'repeat';
+let currentModel = null;
+let baseScale = 1;
+let maxClipDuration = 1;
+let userScrubbing = false;
+let currentLabel = '';
+
+let turntableOn = false, turntableRev = false, turntableSpeed = 1.0;
+let bobOn = false, bobHeight = 8, bobSpeed = 1.5;
+let breatheOn = false, breatheAmt = 8, breatheSpeed = 1.2;
+let motionClock = 0;
+
+function clearModel() { if (currentModel) scene.remove(currentModel); currentModel = null; mixer = null; actions = []; }
+/* ── RENDER MODES — Wireframe, Fresnel/X-ray rim, Toon, Point cloud.
+   Mutually exclusive: switching to one restores the others. Each
+   mesh's original material is cached once so switching back to
+   'none' always returns to how it actually looked. ── */
+function createToonGradientMap(steps = 4) {
+  const data = new Uint8Array(steps);
+  for (let i = 0; i < steps; i++) data[i] = Math.floor(255 * (i + 1) / steps);
+  const tex = new THREE.DataTexture(data, steps, 1, THREE.RedFormat);
+  tex.minFilter = THREE.NearestFilter;
+  tex.magFilter = THREE.NearestFilter;
+  tex.needsUpdate = true;
+  return tex;
+}
+const toonGradientMap = createToonGradientMap();
+
+const fresnelVertexShader = `
+varying vec3 vNormal;
+varying vec3 vViewDir;
+void main() {
+  vNormal = normalize(normalMatrix * normal);
+  vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+  vViewDir = normalize(-mvPosition.xyz);
+  gl_Position = projectionMatrix * mvPosition;
+}`;
+const fresnelFragmentShader = `
+varying vec3 vNormal;
+varying vec3 vViewDir;
+uniform vec3 uColor;
+void main() {
+  float fresnel = pow(1.0 - max(dot(normalize(vNormal), normalize(vViewDir)), 0.0), 2.0);
+  gl_FragColor = vec4(uColor, fresnel);
+}`;
+
+let renderMode = 'none';
+function setRenderMode(mode) {
+  renderMode = mode;
+  if (!currentModel) return;
+  currentModel.traverse(o => {
+    if (!o.isMesh) return;
+    if (!o.userData.origMaterial) o.userData.origMaterial = o.material;
+    const baseColor = o.userData.origMaterial.color ? o.userData.origMaterial.color.clone() : new THREE.Color(0xffffff);
+
+    if (!o.userData.pointsObj) {
+      const pts = new THREE.Points(o.geometry, new THREE.PointsMaterial({ color: baseColor, size: 0.015, sizeAttenuation: true }));
+      pts.visible = false;
+      o.add(pts);
+      o.userData.pointsObj = pts;
+    }
+
+    o.visible = true;
+    o.userData.pointsObj.visible = false;
+    o.material = o.userData.origMaterial;
+    o.material.wireframe = false;
+
+    if (mode === 'wireframe') {
+      o.material.wireframe = true;
+    } else if (mode === 'toon') {
+      if (!o.userData.toonMaterial) o.userData.toonMaterial = new THREE.MeshToonMaterial({ color: baseColor, gradientMap: toonGradientMap });
+      o.material = o.userData.toonMaterial;
+    } else if (mode === 'fresnel') {
+      if (!o.userData.fresnelMaterial) {
+        o.userData.fresnelMaterial = new THREE.ShaderMaterial({
+          uniforms: { uColor: { value: baseColor } },
+          vertexShader: fresnelVertexShader,
+          fragmentShader: fresnelFragmentShader,
+          transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending,
+        });
+      }
+      o.material = o.userData.fresnelMaterial;
+    } else if (mode === 'points') {
+      if (!o.userData.invisibleMaterial) o.userData.invisibleMaterial = new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false });
+      o.material = o.userData.invisibleMaterial;
+      o.userData.pointsObj.visible = true;
+    }
+  });
+  applyColorFilter(fColor, fOpacity / 100);
+}
+function updateRenderModeButtons() {
+  ['wireBtn', 'fresnelBtn', 'toonBtn', 'pointsBtn'].forEach(id => document.getElementById(id).classList.remove('active'));
+  const map = { wireframe: 'wireBtn', fresnel: 'fresnelBtn', toon: 'toonBtn', points: 'pointsBtn' };
+  if (map[renderMode]) document.getElementById(map[renderMode]).classList.add('active');
+}
+function toggleRenderMode(mode) {
+  setRenderMode(renderMode === mode ? 'none' : mode);
+  updateRenderModeButtons();
+}
+document.getElementById('wireBtn').onclick = () => toggleRenderMode('wireframe');
+document.getElementById('fresnelBtn').onclick = () => toggleRenderMode('fresnel');
+document.getElementById('toonBtn').onclick = () => toggleRenderMode('toon');
+document.getElementById('pointsBtn').onclick = () => toggleRenderMode('points');
+
+/* ── COLOR FILTER — tints the model's actual material color rather
+   than a screen-space CSS trick. This is what makes it work on solid
+   geometry (no internal transparent gaps for a CSS drop-shadow trick
+   to show through) as well as wireframe. Original colors are cached
+   per-material on load so the tint can be removed cleanly. ── */
+function applyColorFilter(colorStr, amount) {
+  if (!currentModel) return;
+  const target = colorStr ? new THREE.Color(colorStr) : null;
+  currentModel.traverse(o => {
+    if (o.isMesh && o.material) {
+      (Array.isArray(o.material) ? o.material : [o.material]).forEach(m => {
+        if (!m.color) return;
+        if (!m.userData.origColor) m.userData.origColor = m.color.clone();
+        if (target) m.color.copy(m.userData.origColor).lerp(target, amount);
+        else m.color.copy(m.userData.origColor);
+      });
+    }
+  });
+}
+function setLoopModeOnActions() {
+  actions.forEach(a => {
+    if (loopMode === 'once') { a.setLoop(THREE.LoopOnce); a.clampWhenFinished = true; }
+    else if (loopMode === 'pingpong') { a.setLoop(THREE.LoopPingPong); a.clampWhenFinished = false; }
+    else { a.setLoop(THREE.LoopRepeat); a.clampWhenFinished = false; }
+  });
+}
+function setDirection(dir) {
+  direction = dir; paused = dir === 0;
+  actions.forEach(a => { a.paused = false; a.timeScale = dir * speed; });
+  document.getElementById('playBackBtn').classList.toggle('active', dir === -1);
+  document.getElementById('playFwdBtn').classList.toggle('active', dir === 1);
+  document.getElementById('pauseResetBtn').classList.toggle('active', dir === 0);
+}
+
+/* Same "count(delay)" convention as the GIF viewer's manifest.json,
+   e.g. "24(0,04)" → "24 frames · 0.04s" — you control this entirely
+   by what you write in manifest.json, same as the GIF viewer. */
+function parseFrames(raw) {
+  if (!raw) return raw;
+  const m = String(raw).match(/^(\d+)\(([^)]+)\)$/);
+  if (!m) return raw;
+  const count = m[1];
+  const delay = m[2].replace(',', '.');
+  const delayNum = parseFloat(delay);
+  if (isNaN(delayNum)) return raw;
+  const sec = delayNum < 1 ? delayNum : delayNum / 10;
+  return count + ' frames  ·  ' + sec.toFixed(1) + 's';
+}
+
+/* ── ELEMENT SYMBOL MAP — ported verbatim from the GIF viewer ── */
+const ELEM_SYM_MAP = {
+  '⌃': 'luft', '△': 'ild', '▽': 'vann', '▢': 'jord',
+  '✳': 'plante', 'ϟ': 'lyn', '⌂': 'metall', '·': 'tom'
+};
+const ELEM_NAMES = ['ild', 'luft', 'vann', 'jord', 'plante', 'lyn', 'metall', 'tom'];
+function makeElemCell(arrow, shape, sym) {
+  const div = document.createElement('div');
+  div.className = 'ms-cell';
+  let displaySym = sym, displayName = '';
+  if (ELEM_SYM_MAP[sym]) {
+    displayName = ELEM_SYM_MAP[sym];
+  } else if (ELEM_NAMES.indexOf(sym) >= 0) {
+    displayName = sym;
+    const revMap = { luft: '⌃', ild: '△', vann: '▽', jord: '▢', plante: '✳', lyn: 'ϟ', metall: '⌂', tom: '·' };
+    displaySym = revMap[sym] || sym;
+  } else {
+    displayName = sym;
+  }
+  div.innerHTML = `<span class="ms-arrow">${arrow}</span><span class="ms-shape">${shape}</span><span class="ms-name">${displaySym}</span><span class="ms-elem-name">${displayName}</span>`;
+  return div;
+}
+
+function populateManifest(m) {
+  document.getElementById('mSidebarNumber').textContent = m.number || '';
+  document.getElementById('mSidebarTitle').textContent = m.title || '';
+  document.getElementById('pageNumber').textContent = m.number || '';
+  document.getElementById('pageTitleText').textContent = m.title || currentLabel;
+
+  const fields = [
+    { key: 'date', val: m.date },
+    { key: 'size', val: m.size },
+    { key: 'dimension', val: m.dimension },
+    { key: 'filetype', val: m.filetype },
+    { key: 'frames', val: parseFrames(m.frames) },
+    { key: 'timeline', val: m.timeline },
+  ];
+  const fg = document.getElementById('msFields');
+  fg.innerHTML = '';
+  fields.forEach(f => {
+    if (!f.val) return;
+    const div = document.createElement('div');
+    div.className = 'ms-field';
+    div.innerHTML = `<div class="ms-key">${f.key}</div><div class="ms-val">${f.val}</div>`;
+    fg.appendChild(div);
+  });
+
+  const ec = m.element_code;
+  const grid = document.getElementById('msElementGrid');
+  grid.innerHTML = '';
+  if (ec) {
+    Object.keys(ec).sort().forEach(lk => {
+      ec[lk].forEach(cell => {
+        let div;
+        if (!cell || cell === '---') {
+          div = document.createElement('div');
+          div.className = 'ms-cell empty';
+        } else {
+          const parts = cell.trim().split(/\s+/);
+          div = makeElemCell(parts[0] || '', parts[1] || '', parts.slice(2).join(' '));
+        }
+        grid.appendChild(div);
+      });
+    });
+  }
+
+  if (m.info && m.info !== '-') {
+    document.getElementById('msNotes').textContent = m.info;
+    document.getElementById('msNotesSection').style.display = 'block';
+  }
+}
+function loadOptionalManifestJson(label) {
+  fetch('manifest.json').then(r => r.ok ? r.json() : null).then(m => {
+    if (!m) return;
+    populateManifest(m);
+  }).catch(() => {});
+}
+
+function loadModel(url, label, bytes) {
+  clearModel();
+  dropHint.style.display = 'none';
+  statBar.textContent = 'loading ' + label + '...';
+  currentLabel = label;
+  const loader = new GLTFLoader();
+  loader.load(url, (gltf) => {
+    const model = gltf.scene;
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const center = box.getCenter(new THREE.Vector3());
+    model.position.sub(center);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    baseScale = 1.6 / maxDim;
+    model.scale.setScalar(baseScale);
+    scene.add(model);
+    currentModel = model;
+    setRenderMode(renderMode);
+
+    maxClipDuration = 1;
+    if (gltf.animations && gltf.animations.length) {
+      mixer = new THREE.AnimationMixer(model);
+      gltf.animations.forEach(clip => {
+        const a = mixer.clipAction(clip);
+        a.play();
+        actions.push(a);
+        maxClipDuration = Math.max(maxClipDuration, clip.duration);
+      });
+      setLoopModeOnActions();
+      setDirection(1);
+    }
+    statBar.textContent = label + '  ·  ' + (gltf.animations ? gltf.animations.length : 0) + ' animation clip(s)';
+    document.getElementById('loadedName').textContent = label;
+    document.getElementById('mSidebarTitle').textContent = label;
+    document.getElementById('pageTitleText').textContent = label;
+    loadOptionalManifestJson(label);
+  }, undefined, (err) => {
+    statBar.textContent = 'failed to load ' + label;
+    dropHint.style.display = 'flex';
+    console.error(err);
+  });
+}
+
+const params = new URLSearchParams(location.search);
+const modelParam = params.get('model');
+const folderParam = params.get('folder');
+
+if (modelParam) {
+  loadModel(modelParam, modelParam, null);
+} else if (HARDCODED_BASE) {
+  loadModel(HARDCODED_BASE + '.glb', HARDCODED_BASE + '.glb', null);
+}
+
+['dragenter', 'dragover'].forEach(evt => document.addEventListener(evt, e => { e.preventDefault(); document.body.classList.add('dragging'); }));
+['dragleave', 'drop'].forEach(evt => document.addEventListener(evt, e => { e.preventDefault(); document.body.classList.remove('dragging'); }));
+document.addEventListener('drop', e => { const file = e.dataTransfer.files[0]; if (file) loadModel(URL.createObjectURL(file), file.name, file.size); });
+const panel = document.getElementById('panel');
+const optionsTab = document.getElementById('optionsTab');
+optionsTab.onclick = () => { panel.classList.toggle('open'); optionsTab.classList.toggle('active'); };
+
+const manifestSidebar = document.getElementById('manifestSidebar');
+const manifestToggle = document.getElementById('manifestToggle');
+manifestToggle.onclick = () => { manifestSidebar.classList.toggle('open'); manifestToggle.classList.toggle('active'); };
+
+const tabManifestBtn = document.getElementById('tabManifestBtn');
+const tabMetaBtn = document.getElementById('tabMetaBtn');
+const manifestTabContent = document.getElementById('manifestTabContent');
+const metaTabContent = document.getElementById('metaTabContent');
+tabManifestBtn.onclick = () => {
+  tabManifestBtn.classList.add('active'); tabMetaBtn.classList.remove('active');
+  manifestTabContent.classList.add('visible'); metaTabContent.classList.remove('visible');
+};
+tabMetaBtn.onclick = () => {
+  tabMetaBtn.classList.add('active'); tabManifestBtn.classList.remove('active');
+  metaTabContent.classList.add('visible'); manifestTabContent.classList.remove('visible');
+};
+
+const presetPanel = document.getElementById('presetPanel');
+const presetToggle = document.getElementById('presetToggle');
+presetToggle.onclick = () => { presetPanel.classList.toggle('open'); presetToggle.classList.toggle('active'); };
+
+/* ── SOUND — plain looping <audio> tag, same as the GIF viewer.
+   Not frame-synced, and has a small native restart gap on MP3
+   loops (encoder padding) — but works under file:// with no
+   server needed, which matters more for how you're testing. ── */
+const soundBtn = document.getElementById('soundBtn');
+const soundToast = document.getElementById('soundToast');
+function showToast(t) { soundToast.textContent = t; soundToast.classList.add('show'); setTimeout(() => soundToast.classList.remove('show'), 1500); }
+
+let audio = null;
+soundBtn.onclick = async () => {
+  if (!audio) {
+    const base = folderParam || HARDCODED_BASE || (currentLabel ? currentLabel.replace(/\.(glb|gltf)$/i, '') : '');
+    audio = new Audio(base + '.mp3');
+    audio.loop = true;
+    audio.onerror = () => showToast('No audio file');
+  }
+  if (audio.paused) {
+    try { await audio.play(); soundBtn.innerHTML = '&#9208;&#65039;'; soundBtn.classList.add('active'); }
+    catch (e) { showToast('Playback blocked'); }
+  } else {
+    audio.pause();
+    soundBtn.innerHTML = '&#127925;';
+    soundBtn.classList.remove('active');
+  }
+};
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = clock.getDelta();
+  motionClock += dt;
+  if (mixer && !paused) {
+    mixer.update(dt);
+    if (!userScrubbing && maxClipDuration > 0) {
+      let t = (mixer.time % maxClipDuration) / maxClipDuration;
+      t = ((t % 1) + 1) % 1;
+      document.getElementById('scrubSlider').value = isNaN(t) ? 0 : t;
+    }
+  }
+  if (currentModel) {
+    if (turntableOn) currentModel.rotation.y += dt * turntableSpeed * (turntableRev ? -1 : 1);
+    currentModel.position.y = bobOn ? Math.sin(motionClock * bobSpeed) * (bobHeight / 100) : 0;
+    const s = breatheOn ? baseScale * (1 + Math.sin(motionClock * breatheSpeed) * (breatheAmt / 100)) : baseScale;
+    currentModel.scale.setScalar(s);
+  }
+  controls.update();
+  renderer.render(scene, camera);
+}
+animate();
+
+document.getElementById('playBackBtn').onclick = () => setDirection(-1);
+document.getElementById('playFwdBtn').onclick = () => setDirection(1);
+document.getElementById('pauseResetBtn').onclick = () => {
+  if (direction !== 0) { setDirection(0); }
+  else {
+    actions.forEach(a => { a.time = 0; a.paused = false; });
+    if (mixer) mixer.update(0);
+    document.getElementById('scrubSlider').value = 0;
+    setDirection(0);
+  }
+};
+
+document.getElementById('loopMode').onchange = (e) => { loopMode = e.target.value; setLoopModeOnActions(); };
+document.getElementById('speedSlider').oninput = (e) => {
+  speed = parseFloat(e.target.value);
+  document.getElementById('speedVal').textContent = speed.toFixed(1) + 'x';
+  if (direction !== 0) actions.forEach(a => a.timeScale = direction * speed);
+};
+const scrubSlider = document.getElementById('scrubSlider');
+scrubSlider.addEventListener('mousedown', () => userScrubbing = true);
+scrubSlider.addEventListener('touchstart', () => userScrubbing = true);
+scrubSlider.addEventListener('change', () => userScrubbing = false);
+scrubSlider.oninput = (e) => {
+  if (!mixer) return;
+  const t = parseFloat(e.target.value) * maxClipDuration;
+  actions.forEach(a => { a.time = t; });
+  mixer.update(0);
+};
+
+document.getElementById('resetCamBtn').onclick = () => { camera.position.copy(DEFAULT_CAM_POS); controls.target.set(0, 0, 0); controls.update(); };
+
+function bindToggle(id, onChange) {
+  const el = document.getElementById(id);
+  el.onclick = () => { const on = !el.classList.contains('on'); el.classList.toggle('on', on); onChange(on); };
+}
+bindToggle('autoRotToggle', on => controls.autoRotate = on);
+document.getElementById('rotSpeedSlider').oninput = (e) => controls.autoRotateSpeed = parseFloat(e.target.value);
+bindToggle('turntableToggle', on => turntableOn = on);
+bindToggle('turntableRevToggle', on => turntableRev = on);
+document.getElementById('turntableSpeedSlider').oninput = (e) => turntableSpeed = parseFloat(e.target.value);
+bindToggle('bobToggle', on => bobOn = on);
+document.getElementById('bobHeightSlider').oninput = (e) => bobHeight = parseFloat(e.target.value);
+document.getElementById('bobSpeedSlider').oninput = (e) => bobSpeed = parseFloat(e.target.value);
+bindToggle('breatheToggle', on => breatheOn = on);
+document.getElementById('breatheAmtSlider').oninput = (e) => breatheAmt = parseFloat(e.target.value);
+document.getElementById('breatheSpeedSlider').oninput = (e) => breatheSpeed = parseFloat(e.target.value);
+
+document.getElementById('fullscreenBtn').onclick = () => {
+  if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+  else document.exitFullscreen();
+};
+
+/* ── EFFECTS — each on its own layer (invert / glow / tint), so
+   they render independently and can never interfere with each
+   other, no matter how many are active at once. ── */
+let negative = false, gColor = '', gSize = 12, fColor = '', fOpacity = 40;
+const fxInvert = document.getElementById('fxInvert');
+const fxGlow = document.getElementById('fxGlow');
+function updateAll() {
+  fxInvert.style.filter = negative ? 'invert(1)' : '';
+  fxGlow.style.filter = gColor ? `drop-shadow(0 0 ${gSize}px ${gColor})` : '';
+  applyColorFilter(fColor, fOpacity / 100);
+}
+
+function openFxPanel(which) {
+  const panelEl = document.getElementById(which + 'Panel');
+  const btn = document.getElementById(which + 'Btn');
+  const other = which === 'g' ? 'f' : 'g';
+  const isOpen = panelEl.classList.contains('open');
+  panelEl.classList.toggle('open', !isOpen);
+  btn.classList.toggle('panel-open', !isOpen);
+  document.getElementById(other + 'Panel').classList.remove('open');
+  document.getElementById(other + 'Btn').classList.remove('panel-open');
+}
+document.getElementById('gBtn').onclick = () => openFxPanel('g');
+document.getElementById('fBtn').onclick = () => openFxPanel('f');
+document.getElementById('iBtn').onclick = () => { negative = !negative; document.getElementById('iBtn').classList.toggle('active-i', negative); updateAll(); };
+
+function setupSwatches(rowId, onPick) {
+  document.querySelectorAll('#' + rowId + ' .swatch').forEach(s => {
+    s.onclick = () => { document.querySelectorAll('#' + rowId + ' .swatch').forEach(x => x.classList.remove('selected')); s.classList.add('selected'); onPick(s.dataset.color); };
+  });
+}
+setupSwatches('glowSwatches', c => { gColor = c; document.getElementById('gBtn').classList.toggle('has-effect', !!c); updateAll(); });
+setupSwatches('filterSwatches', c => { fColor = c; document.getElementById('fBtn').classList.toggle('has-effect', !!c); updateAll(); });
+document.getElementById('glowSize').oninput = (e) => { gSize = parseInt(e.target.value); document.getElementById('glowSizeVal').textContent = gSize; updateAll(); };
+document.getElementById('filterOpacity').oninput = (e) => { fOpacity = parseInt(e.target.value); document.getElementById('filterOpVal').textContent = fOpacity; updateAll(); };
+
+document.getElementById('tapBtn').onclick = () => {
+  negative = false; gColor = ''; fColor = '';
+  document.getElementById('iBtn').classList.remove('active-i');
+  document.getElementById('gBtn').classList.remove('has-effect');
+  document.getElementById('fBtn').classList.remove('has-effect');
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('selected'));
+  setRenderMode('none');
+  updateRenderModeButtons();
+  updateAll();
+};
+
+/* ── PRESETS ── */
+/* Shared with the GIF viewer: same localStorage key AND same field
+   names (gColor/gSize/fColor/fOpacity/negative) for the effects that
+   both viewers have in common, so presets saved in either one show
+   up in both. Extra 3D-only fields (renderMode, turntable, bob,
+   breathe, loopMode, speed) are simply ignored by the GIF viewer's
+   applyState since it only reads the keys it knows about. */
+const PRESETS_KEY = 'viewerPresets';
+let presets = JSON.parse(localStorage.getItem(PRESETS_KEY) || '[]');
+function getState() {
+  return { gColor, gSize, fColor, fOpacity, negative, renderMode, turntableOn, turntableRev, turntableSpeed, bobOn, bobHeight, bobSpeed, breatheOn, breatheAmt, breatheSpeed, loopMode, speed };
+}
+function stateLabel(st) {
+  const parts = [];
+  if (st.gColor) parts.push('G'); if (st.negative) parts.push('I'); if (st.fColor) parts.push('F');
+  const mode = st.renderMode || (st.wireOn ? 'wireframe' : 'none');
+  if (mode && mode !== 'none') parts.push(mode.toUpperCase());
+  if (st.turntableOn) parts.push('SPIN'); if (st.bobOn) parts.push('BOB'); if (st.breatheOn) parts.push('BREATHE');
+  return parts.join(' ') || '—';
+}
+function setToggleEl(id, on) { document.getElementById(id).classList.toggle('on', on); }
+function applyState(st) {
+  gColor = st.gColor || ''; gSize = st.gSize ?? 12; fColor = st.fColor || ''; fOpacity = st.fOpacity ?? 40; negative = !!st.negative;
+  document.getElementById('glowSize').value = gSize; document.getElementById('glowSizeVal').textContent = gSize;
+  document.getElementById('filterOpacity').value = fOpacity; document.getElementById('filterOpVal').textContent = fOpacity;
+  document.getElementById('iBtn').classList.toggle('active-i', negative);
+  document.getElementById('gBtn').classList.toggle('has-effect', !!gColor);
+  document.getElementById('fBtn').classList.toggle('has-effect', !!fColor);
+  updateAll();
+  const mode = st.renderMode || (st.wireOn ? 'wireframe' : 'none');
+  setRenderMode(mode); updateRenderModeButtons();
+  turntableOn = !!st.turntableOn; setToggleEl('turntableToggle', turntableOn);
+  turntableRev = !!st.turntableRev; setToggleEl('turntableRevToggle', turntableRev);
+  turntableSpeed = st.turntableSpeed ?? 1; document.getElementById('turntableSpeedSlider').value = turntableSpeed;
+  bobOn = !!st.bobOn; setToggleEl('bobToggle', bobOn);
+  bobHeight = st.bobHeight ?? 8; document.getElementById('bobHeightSlider').value = bobHeight;
+  bobSpeed = st.bobSpeed ?? 1.5; document.getElementById('bobSpeedSlider').value = bobSpeed;
+  breatheOn = !!st.breatheOn; setToggleEl('breatheToggle', breatheOn);
+  breatheAmt = st.breatheAmt ?? 8; document.getElementById('breatheAmtSlider').value = breatheAmt;
+  breatheSpeed = st.breatheSpeed ?? 1.2; document.getElementById('breatheSpeedSlider').value = breatheSpeed;
+  loopMode = st.loopMode || 'repeat'; document.getElementById('loopMode').value = loopMode; setLoopModeOnActions();
+  speed = st.speed ?? 1; document.getElementById('speedSlider').value = speed; document.getElementById('speedVal').textContent = speed.toFixed(1) + 'x';
+}
+function savePresets() { localStorage.setItem(PRESETS_KEY, JSON.stringify(presets)); }
+function renderPresets() {
+  const list = document.getElementById('presetList');
+  list.innerHTML = '';
+  document.getElementById('presetCount').textContent = presets.length ? presets.length : '';
+  if (presets.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'padding:12px 10px;font-size:10px;color:#4a4a5a;text-align:center;';
+    empty.textContent = 'no presets saved';
+    list.appendChild(empty);
+    return;
+  }
+  presets.forEach((p, i) => {
+    const item = document.createElement('div');
+    item.className = 'preset-item';
+    const load = document.createElement('button');
+    load.className = 'preset-load';
+    load.innerHTML = p.name + '<span class="preset-sub">' + stateLabel(p.state) + '</span>';
+    load.onclick = () => { applyState(p.state); renderPresets(); };
+    const del = document.createElement('button');
+    del.className = 'preset-del';
+    del.textContent = '×';
+    del.onclick = (e) => { e.stopPropagation(); presets.splice(i, 1); savePresets(); renderPresets(); };
+    item.appendChild(load); item.appendChild(del);
+    list.appendChild(item);
+  });
+}
+document.getElementById('presetSaveBtn').onclick = () => {
+  const nameEl = document.getElementById('presetNameInput');
+  const name = nameEl.value.trim();
+  if (!name) { nameEl.focus(); return; }
+  presets.push({ name, state: getState() });
+  savePresets(); nameEl.value = ''; renderPresets();
+};
+document.getElementById('presetNameInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') document.getElementById('presetSaveBtn').click(); });
+renderPresets();
+</script>
+</body>
+</html>

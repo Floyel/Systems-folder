@@ -1,0 +1,19 @@
+{
+  "title": "uNa",
+  "number": "0333",
+  "filetype": "glb",
+  "frames": "95",
+  "date": "17/9-26",
+  "size": "",
+  "dimension": "3D",
+  "timeline": "main",
+  "info": "First 3D symbol",
+  "element_code": {
+  "L1":  ["↑ ● jord", "↑ ● ild", "↑ ○ vann", "↓ ● luft"],
+  "L2":  ["↓ ○ vann", "↑ ● luft", "↑ ● jord", "↓ ● ild"],
+  "L3":  ["↓ ● jord", "↓ ● ild", "↑ ○ vann", "↑ ● luft"],
+  "L4":  ["↓ ★ plante", "---", "↑ ★ plante", "---"],
+  "L5":  ["↑ ★ plante", "---", "↑ ★ plante", "---"]
+  },
+  "effects": ["Glow","Inverted","Filter"]
+}

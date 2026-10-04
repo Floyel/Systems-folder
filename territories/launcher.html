@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="window-width"  content="520">
+<meta name="window-height" content="92vh">
+<meta name="window-x"     content="40">
+<meta name="window-y"     content="40">
+<title>Flōyél — Territory Launcher</title>
+<style>
+/* ── Tokens ─────────────────────────────────────────────────── */
+:root {
+  --bg:       #f0ece3;
+  --panel:    #e8e3d8;
+  --panel2:   #ddd8cc;
+  --border:   #c8c0b0;
+  --border2:  #b8b0a0;
+  --dimmer:   #ece8de;
+  --ink:      #2a2520;
+  --ink2:     #6a6058;
+  --ink3:     #9a9088;
+  --gold:     #c8a040;
+  --gold-dim: #a07828;
+  --red:      #a04030;
+  --green:    #406040;
+  --font:     'Courier New', 'Lucida Console', monospace;
+  --scan:     repeating-linear-gradient(
+                0deg,
+                transparent,
+                transparent 3px,
+                rgba(0,0,0,.025) 3px,
+                rgba(0,0,0,.025) 4px
+              );
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  background-image: var(--scan);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: 12px;
+  height: 100vh;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* ── Topbar ──────────────────────────────────────────────────── */
+#topbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  height: 36px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+}
+#topbar-title {
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--ink2);
+  flex: 1;
+}
+#topbar-status {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+
+/* ── Main layout ─────────────────────────────────────────────── */
+#main {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 36px);
+  overflow: hidden;
+}
+
+/* ── Section header ──────────────────────────────────────────── */
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--border);
+}
+.section-label {
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--ink2);
+}
+.section-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.section-count {
+  font-size: 9px;
+  color: var(--ink3);
+  letter-spacing: 1px;
+}
+
+/* ── Territory list ──────────────────────────────────────────── */
+#territory-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+#territory-scroll::-webkit-scrollbar { width: 4px; }
+#territory-scroll::-webkit-scrollbar-track { background: var(--panel); }
+#territory-scroll::-webkit-scrollbar-thumb { background: var(--border2); }
+
+.territory-row {
+  border-bottom: 1px solid var(--border);
+}
+
+.territory-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  cursor: pointer;
+  transition: background .1s;
+}
+.territory-head:hover { background: var(--panel2); }
+.territory-head.open   { background: var(--panel2); }
+
+.t-toggle {
+  font-size: 9px;
+  color: var(--ink3);
+  width: 10px;
+  flex-shrink: 0;
+  transition: transform .15s;
+}
+.territory-head.open .t-toggle { transform: rotate(90deg); }
+
+.t-name {
+  flex: 1;
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.t-status {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--green);
+  flex-shrink: 0;
+}
+.t-status.error { color: var(--red); }
+
+.t-launch-btn {
+  background: none;
+  border: 1px solid var(--border2);
+  color: var(--ink2);
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: border-color .1s, color .1s;
+  flex-shrink: 0;
+}
+.t-launch-btn:hover { border-color: var(--gold); color: var(--gold); }
+
+/* ── Territory detail panel ──────────────────────────────────── */
+.territory-detail {
+  display: none;
+  padding: 12px 16px 14px 36px;
+  background: var(--dimmer);
+  border-top: 1px solid var(--border);
+}
+.territory-row.open .territory-detail { display: block; }
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px 20px;
+  margin-bottom: 10px;
+}
+.detail-item { display: flex; flex-direction: column; gap: 2px; }
+.detail-label {
+  font-size: 8px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink3);
+}
+.detail-value {
+  font-size: 10px;
+  color: var(--ink2);
+  letter-spacing: .5px;
+}
+.detail-desc {
+  font-size: 10px;
+  color: var(--ink2);
+  line-height: 1.7;
+  letter-spacing: .3px;
+  margin-top: 6px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── Empty / error states ────────────────────────────────────── */
+#empty-state {
+  padding: 32px 16px;
+  font-size: 10px;
+  letter-spacing: 1px;
+  color: var(--ink3);
+  line-height: 2;
+  display: none;
+}
+#empty-state.visible { display: block; }
+
+/* ── Footer ──────────────────────────────────────────────────── */
+#footer {
+  border-top: 1px solid var(--border);
+  background: var(--panel2);
+  padding: 6px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+#footer-left {
+  flex: 1;
+  font-size: 9px;
+  letter-spacing: 1px;
+  color: var(--ink3);
+}
+#refresh-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--ink3);
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+#refresh-btn:hover { border-color: var(--border2); color: var(--ink2); }
+
+/* ── QR Modal ────────────────────────────────────────────────── */
+#qr-modal {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(40,35,28,.55);
+  align-items: center;
+  justify-content: center;
+}
+#qr-modal.visible { display: flex; }
+
+#qr-box {
+  background: var(--panel);
+  border: 1px solid var(--border2);
+  width: min(480px, 90vw);
+  max-height: 90vh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+}
+
+#qr-header {
+  display: flex;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--panel2);
+  border-bottom: 1px solid var(--border);
+  gap: 10px;
+}
+#qr-title {
+  flex: 1;
+  font-size: 9px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--ink2);
+}
+#qr-close {
+  background: none;
+  border: none;
+  color: var(--ink3);
+  font-family: var(--font);
+  font-size: 14px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 2px;
+}
+#qr-close:hover { color: var(--ink); }
+
+#qr-body {
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  flex: 1;
+  overflow-y: auto;
+}
+
+#qr-territory-name {
+  font-size: 13px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink);
+  text-align: center;
+}
+
+#qr-img-wrap {
+  background: #fff;
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+#qr-img-wrap canvas, #qr-img-wrap img { display: block; }
+
+#qr-url {
+  font-size: 9px;
+  letter-spacing: .5px;
+  color: var(--ink2);
+  word-break: break-all;
+  text-align: center;
+  line-height: 1.7;
+  padding: 0 8px;
+}
+
+#qr-url a { color: var(--gold); text-decoration: none; }
+#qr-url a:hover { text-decoration: underline; }
+
+#qr-instructions {
+  font-size: 9px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--ink3);
+  text-align: center;
+}
+
+/* ── Troubleshoot drawer ─────────────────────────────────────── */
+#trouble-toggle {
+  width: 100%;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  color: var(--ink3);
+  font-family: var(--font);
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 8px 14px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#trouble-toggle:hover { color: var(--ink2); background: var(--dimmer); }
+#trouble-arrow { transition: transform .2s; }
+#trouble-toggle.open #trouble-arrow { transform: rotate(180deg); }
+
+#trouble-body {
+  display: none;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 12px 14px;
+  background: var(--dimmer);
+  border-top: 1px solid var(--border);
+  font-size: 10px;
+  color: var(--ink2);
+  line-height: 1.8;
+  letter-spacing: .3px;
+}
+#trouble-body.visible { display: block; }
+#trouble-body::-webkit-scrollbar { width: 3px; }
+#trouble-body::-webkit-scrollbar-thumb { background: var(--border2); }
+
+.trouble-section {
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.trouble-section:last-child { border-bottom: none; margin-bottom: 0; }
+.trouble-head {
+  font-size: 9px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ink3);
+  margin-bottom: 5px;
+}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div id="topbar-title">Flōyél — Territory Launcher</div>
+  <div id="topbar-status" id="status-text">Scanning…</div>
+</div>
+
+<div id="main">
+  <div class="section-head">
+    <div class="section-label">Available Territories</div>
+    <div class="section-rule"></div>
+    <div class="section-count" id="territory-count">—</div>
+  </div>
+
+  <div id="territory-scroll">
+    <div id="empty-state">No valid territories found.<br>
+    Place territory folders inside the territories/ folder.<br>
+    Each must contain webar-scene.html.</div>
+    <div id="territory-list"></div>
+  </div>
+
+  <div id="active-bar" style="display:none;padding:8px 16px;background:var(--panel2);border-top:1px solid var(--border);border-bottom:1px solid var(--border);align-items:center;gap:10px;">
+  <span style="font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--ink3);">Active</span>
+  <span id="active-name" style="flex:1;font-size:10px;letter-spacing:1px;color:var(--gold);"></span>
+
+</div>
+
+<div id="footer">
+    <div id="footer-left" id="ngrok-status">Checking ngrok…</div>
+    <button id="refresh-btn" onclick="init()">↻ Refresh</button>
+  </div>
+</div>
+
+<!-- QR Modal -->
+<div id="qr-modal">
+  <div id="qr-box">
+    <div id="qr-header">
+      <div id="qr-title">Launch Territory</div>
+      <button id="qr-close" onclick="closeQR()">✕</button>
+    </div>
+    <div id="qr-body">
+      <div id="qr-territory-name"></div>
+      <div id="qr-img-wrap">
+        <canvas id="qr-canvas" width="200" height="200"></canvas>
+      </div>
+      <div id="qr-instructions">Scan with phone camera or open URL</div>
+      <div id="qr-url"><a id="qr-link" href="#" target="_blank"></a></div>
+    </div>
+
+    <!-- Troubleshoot drawer -->
+    <button id="trouble-toggle" onclick="toggleTrouble()">
+      <span id="trouble-arrow">▲</span>
+      Troubleshoot
+    </button>
+    <div id="trouble-body">
+      <div class="trouble-section">
+        <div class="trouble-head">Ngrok not running</div>
+        Ngrok must be running before you launch a territory.<br>
+        Open a terminal and run: <strong>ngrok http 8000</strong><br>
+        Keep that terminal open while using the launcher.
+        <br><br>
+        Check status: <span id="ngrok-status-inline" style="color:var(--ink3)">Checking…</span>
+      </div>
+      <div class="trouble-section">
+        <div class="trouble-head">Can't scan the QR code</div>
+        Open your phone's camera app and point it at the QR code.<br>
+        Or type the URL shown below the QR directly into Chrome or Safari.<br>
+        Make sure you're using <strong>https://</strong> — not http.
+      </div>
+      <div class="trouble-section">
+        <div class="trouble-head">Page won't load on phone</div>
+        Make sure the launcher is still running (this window open).<br>
+        If the ngrok URL has changed, click Refresh and re-launch.<br>
+        Try a different browser — Chrome (Android) or Safari (iPhone).
+      </div>
+      <div class="trouble-section">
+        <div class="trouble-head">Camera won't start</div>
+        Allow camera access when prompted.<br>
+        On Android: Settings → Apps → Chrome → Permissions → Camera → Allow.<br>
+        The URL must start with https:// — camera is blocked on plain http.
+      </div>
+      <div class="trouble-section">
+        <div class="trouble-head">Can't find / scan a surface</div>
+        Move slowly and point the camera at a flat, well-lit surface.<br>
+        Floors, tables, and desks work best.<br>
+        Avoid very dark rooms or plain white surfaces with no texture.
+      </div>
+      <div class="trouble-section">
+        <div class="trouble-head">Scene placed in wrong spot / floating</div>
+        Use the Reset button (top right of the AR view) to try again.<br>
+        Walk back from where you placed the scene — move around to re-anchor it.
+      </div>
+      <div class="trouble-section">
+        <div class="trouble-head">Scene is very laggy</div>
+        Close other apps on your phone.<br>
+        Large GIF files (over 2MB) will reduce performance.<br>
+        Reduce the number of objects or GIF sizes for smoother results.
+      </div>
+      <div class="trouble-section">
+        <div class="trouble-head">Vanadium / privacy browsers</div>
+        Vanadium (GrapheneOS) blocks WebXR and camera APIs.<br>
+        Use standard Chrome (Android) or Safari (iPhone) instead.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Config ────────────────────────────────────────────────────
+// Territories are subfolders at the same level as this file
+// Each must contain webar-scene.html to be considered valid
+// territory-data.js is optional — provides name, description, meta
+
+const TERRITORIES_PATH = '.';
+
+// ── State ─────────────────────────────────────────────────────
+let territories      = [];
+let ngrokUrl         = null;
+let openRow          = null;
+let activeTerritory  = null; // currently launched territory
+let localBaseUrl     = null; // local network URL
+let showLocalIp      = false; // hidden by default — user must explicitly enable
+
+// ── Init ──────────────────────────────────────────────────────
+async function init() {
+  setStatus('Scanning territories…');
+  await scanTerritories();
+  await checkNgrok();
+  await checkLocalIp();
+  renderList();
+}
+
+// ── Territory scanner ─────────────────────────────────────────
+// Fetches /api/territories from the serve.py server
+async function scanTerritories() {
+  territories = [];
+  try {
+    const res = await fetch('/api/territories', { signal: AbortSignal.timeout(3000) });
+    if(!res.ok) throw new Error('No API');
+    const slugs = await res.json();
+    for(const slug of slugs) {
+      const t = await loadTerritory(slug);
+      territories.push(t);
+    }
+  } catch(e) {
+    // No server API — try to load from known territory-data.js index
+    // This path is used when opening the launcher directly (file://)
+    setStatus('No server found — limited mode');
+  }
+}
+
+async function loadTerritory(slug) {
+  const base = slug;
+  const entry = {
+    slug,
+    name:        formatName(slug),
+    path:        base + '/webar-scene.html',
+    valid:       false,
+    data:        null,
+  };
+
+  // Check webar-scene.html exists
+  try {
+    const r = await fetch(base + '/webar-scene.html', { method: 'HEAD', signal: AbortSignal.timeout(2000) });
+    entry.valid = r.ok;
+  } catch(e) { entry.valid = false; }
+
+  // Try to load territory-data.js metadata
+  try {
+    const r = await fetch(base + '/territory-data.js', { signal: AbortSignal.timeout(2000) });
+    if(r.ok) {
+      const js = await r.text();
+      // Extract the pushed object from the self-registering script
+      const match = js.match(/window\.TERRITORIES\.push\((\{[\s\S]*?\})\)/);
+      if(match) {
+        // Safe eval — only runs the object literal
+        entry.data = new Function('return ' + match[1])();
+        if(entry.data.name && entry.data.name !== 'Territory Name') entry.name = entry.data.name;
+      }
+    }
+  } catch(e) {}
+
+  return entry;
+}
+
+function formatName(slug) {
+  return slug
+    .replace(/^\d+-/, '')
+    .replace(/-/g, ' ')
+    .replace(/\b\w/g, c => c.toUpperCase());
+}
+
+// ── Ngrok check ───────────────────────────────────────────────
+async function checkLocalIp() {
+  try {
+    const r = await fetch('/api/localip', { signal: AbortSignal.timeout(2000) });
+    if(r.ok) {
+      const d = await r.json();
+      localBaseUrl = d.url || null;
+    }
+  } catch(e) { localBaseUrl = null; }
+}
+
+async function checkNgrok() {
+  try {
+    const r = await fetch('/api/ngrok', { signal: AbortSignal.timeout(3000) });
+    if(r.ok) {
+      const d = await r.json();
+      if(d.url) {
+        ngrokUrl = d.url.replace('/webar-scene.html', '');
+        setStatus('● ngrok active — any network');
+        updateNgrokStatus(true);
+        return;
+      }
+    }
+  } catch(e) {}
+  ngrokUrl = null;
+  setStatus(localBaseUrl ? '● local network only — ngrok not running' : '✗ no connection — run: ngrok http 8000');
+  updateNgrokStatus(false);
+}
+
+function updateNgrokStatus(ok) {
+  const el = document.getElementById('ngrok-status-inline');
+  if(!el) return;
+  el.textContent = ok ? '● Active' : '✗ Not running — run: ngrok http 8000';
+  el.style.color = ok ? 'var(--green)' : 'var(--red)';
+}
+
+// ── Render ────────────────────────────────────────────────────
+function renderList() {
+  const list  = document.getElementById('territory-list');
+  const empty = document.getElementById('empty-state');
+  const count = document.getElementById('territory-count');
+
+  list.innerHTML = '';
+  const valid = territories.filter(t => t.valid);
+  count.textContent = valid.length + ' found';
+
+  if(!valid.length) {
+    empty.classList.add('visible');
+    return;
+  }
+  empty.classList.remove('visible');
+
+  territories.forEach(t => {
+    const row = document.createElement('div');
+    row.className = 'territory-row';
+
+    const head = document.createElement('div');
+    head.className = 'territory-head';
+
+    const toggle = document.createElement('span');
+    toggle.className = 't-toggle';
+    toggle.textContent = '▶';
+
+    const name = document.createElement('span');
+    name.className = 't-name';
+    name.textContent = t.name;
+
+    const status = document.createElement('span');
+    status.className = 't-status' + (t.valid ? '' : ' error');
+    status.textContent = t.valid ? '● ready' : '✗ missing';
+
+    const btn = document.createElement('button');
+    btn.className = 't-launch-btn';
+    btn.id = 'launch-btn-' + t.slug;
+    const isActive = activeTerritory && activeTerritory.slug === t.slug;
+    btn.textContent = isActive ? '↗ QR' : 'Launch';
+    btn.style.borderColor = isActive ? 'var(--gold)' : '';
+    btn.style.color       = isActive ? 'var(--gold)' : '';
+    btn.disabled = !t.valid;
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      // Check by reading the button's own cached URL — avoids any state sync issues
+      if(btn._cachedUrl) {
+        showQR(t.name, btn._cachedUrl);
+      } else {
+        launchTerritory(t, btn);
+      }
+    });
+
+    head.appendChild(toggle);
+    head.appendChild(name);
+    head.appendChild(status);
+    head.appendChild(btn);
+
+    // Detail panel
+    const detail = document.createElement('div');
+    detail.className = 'territory-detail';
+    detail.innerHTML = buildDetail(t);
+
+    head.addEventListener('click', () => {
+      const isOpen = row.classList.contains('open');
+      document.querySelectorAll('.territory-row.open').forEach(r => r.classList.remove('open'));
+      document.querySelectorAll('.territory-head.open').forEach(h => h.classList.remove('open'));
+      if(!isOpen) {
+        row.classList.add('open');
+        head.classList.add('open');
+      }
+    });
+
+    row.appendChild(head);
+    row.appendChild(detail);
+    list.appendChild(row);
+  });
+}
+
+function buildDetail(t) {
+  const d = t.data;
+  if(!d) {
+    return `<div style="font-size:10px;color:var(--ink3);letter-spacing:.5px;">
+      No territory-data.js found. Add one for name, description and metadata.
+      <br>Path: ${t.path}
+    </div>`;
+  }
+
+  const meta = [
+    d.date     ? { label: 'Date',     value: d.date }     : null,
+    d.symbols  ? { label: 'Symbols',  value: d.symbols }  : null,
+    d.size     ? { label: 'Size',     value: d.size }     : null,
+    d.duration ? { label: 'Duration', value: d.duration } : null,
+    d.location ? { label: 'Location', value: d.location } : null,
+    d.attached ? { label: 'Attached', value: 'Yes — located place' } : null,
+  ].filter(Boolean);
+
+  const gridHTML = meta.length ? `
+    <div class="detail-grid">
+      ${meta.map(m => `
+        <div class="detail-item">
+          <span class="detail-label">${m.label}</span>
+          <span class="detail-value">${m.value}</span>
+        </div>`).join('')}
+    </div>` : '';
+
+  const descHTML = d.description ? `<div class="detail-desc">${d.description}</div>` : '';
+  return gridHTML + descHTML;
+}
+
+// ── Launch ────────────────────────────────────────────────────
+async function launchTerritory(t, btn) {
+  await checkNgrok();
+  if(!ngrokUrl) {
+    alert('ngrok is not running.\n\nStart it with: ngrok http 8000\nThen try again.');
+    return;
+  }
+
+  // If a different territory is already active, confirm switch
+  if(activeTerritory && activeTerritory.slug !== t.slug) {
+    const ok = confirm(
+      'Territory already active: ' + activeTerritory.name +
+      '\n\nSwitch to: ' + t.name + '?\n\n' +
+      'The phone will need to reload the new territory URL.'
+    );
+    if(!ok) return;
+  }
+
+  const prev = activeTerritory;
+  activeTerritory = t;
+
+  // Reset previous active button
+  if(prev) {
+    const prevBtn = document.getElementById('launch-btn-' + prev.slug);
+    if(prevBtn) { prevBtn.textContent='Launch'; prevBtn.style.borderColor=''; prevBtn.style.color=''; }
+  }
+  // Set new active button
+  const newBtn = document.getElementById('launch-btn-' + t.slug);
+  if(newBtn) { newBtn.textContent='↗ QR'; newBtn.style.borderColor='var(--gold)'; newBtn.style.color='var(--gold)'; }
+
+  // Update active bar
+  const bar = document.getElementById('active-bar');
+  const aName = document.getElementById('active-name');
+  if(bar) bar.style.display = 'flex';
+  if(aName) aName.textContent = t.name;
+
+  const path = t.slug + '/webar-scene.html';
+  const url      = ngrokUrl ? ngrokUrl.replace('http://','https://') + '/' + path : null;
+  const localUrl = localBaseUrl ? localBaseUrl + '/' + path : null;
+  const primaryUrl = url || localUrl;
+
+  activeTerritory._url      = primaryUrl;
+  activeTerritory._localUrl = localUrl;
+  activeTerritory._ngrokUrl = url;
+
+  if(btn) btn._cachedUrl = primaryUrl;
+  const b = document.getElementById('launch-btn-' + t.slug);
+  if(b) b._cachedUrl = primaryUrl;
+
+  if(!primaryUrl) {
+    alert('No network available.\nStart ngrok or connect to a network first.');
+    return;
+  }
+  showQR(t.name, url, localUrl);
+}
+
+// ── QR screen ─────────────────────────────────────────────────
+function showQR(name, ngrokUrl, localUrl) {
+  const primary = ngrokUrl || localUrl;
+  document.getElementById('qr-territory-name').textContent = name.toUpperCase();
+
+  // QR always shows ngrok URL (works anywhere) — local is shown as fallback text
+  generateQR(primary);
+
+  // Build URL display
+  const linkEl = document.getElementById('qr-link');
+  let html = '';
+  if(ngrokUrl) {
+    html += `<a href="${ngrokUrl}" target="_blank">${ngrokUrl}</a>`;
+    html += `<div style="margin-top:6px;font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);">Works on any network</div>`;
+  }
+  if(localUrl) {
+    html += `<div style="margin-top:${ngrokUrl?12:0}px;padding-top:${ngrokUrl?10:0}px;${ngrokUrl?'border-top:1px solid var(--border);':''}">`;
+    html += `<div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">`;
+    html += `<span style="font-size:8px;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);">Local network (same WiFi only)</span>`;
+    html += `<label style="display:flex;align-items:center;gap:5px;cursor:pointer;margin-left:auto;">`;
+    html += `<input type="checkbox" id="local-ip-toggle" style="cursor:pointer;" ${showLocalIp?'checked':''} onchange="toggleLocalIp(this, '${localUrl}')">`;
+    html += `<span style="font-size:8px;color:var(--ink3);letter-spacing:1px;text-transform:uppercase;">Show</span>`;
+    html += `</label></div>`;
+    if(showLocalIp) {
+      html += `<a href="${localUrl}" target="_blank" style="color:var(--ink2);font-size:10px;">${localUrl}</a>`;
+    } else {
+      html += `<div style="font-size:9px;color:var(--ink3);letter-spacing:.5px;line-height:1.7;">`;
+      html += `⚠ Hidden by default. Only enable if not streaming or recording.`;
+      html += `</div>`;
+    }
+    html += '</div>';
+  }
+  if(!ngrokUrl && !localUrl) html = 'No URL available';
+  linkEl.innerHTML = html;
+
+  document.getElementById('qr-modal').classList.add('visible');
+}
+
+function reopenQR() {
+  if(activeTerritory && activeTerritory._url) {
+    showQR(activeTerritory.name, activeTerritory._ngrokUrl, activeTerritory._localUrl);
+  }
+}
+
+function toggleLocalIp(checkbox, localUrl) {
+  if(checkbox.checked) {
+    // Two-step confirm before showing IP
+    const ok = confirm(
+      '⚠  Privacy warning\n\n' +
+      'Your local network IP address will be visible.\n\n' +
+      'Do NOT show this QR screen while streaming, recording, or sharing your screen.\n\n' +
+      'Show local IP address?'
+    );
+    if(!ok) {
+      checkbox.checked = false;
+      return;
+    }
+    showLocalIp = true;
+  } else {
+    showLocalIp = false;
+  }
+  // Re-render the QR screen with updated state
+  if(activeTerritory) {
+    showQR(activeTerritory.name, activeTerritory._ngrokUrl, activeTerritory._localUrl);
+  }
+}
+
+function closeQR() {
+  document.getElementById('qr-modal').classList.remove('visible');
+  document.getElementById('trouble-body').classList.remove('visible');
+  document.getElementById('trouble-toggle').classList.remove('open');
+  showLocalIp = false; // reset — must re-enable each time for safety
+}
+
+// ── QR generator (no dependencies) ───────────────────────────
+// Minimal QR using the browser's native URL display — falls back to
+// a text link if the QR library isn't available
+function generateQR(url) {
+  const wrap = document.getElementById('qr-img-wrap');
+  wrap.innerHTML = '';
+
+  if(window.QRCode) {
+    new QRCode(wrap, {
+      text:         url,
+      width:        200,
+      height:       200,
+      colorDark:    '#2a2520',
+      colorLight:   '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+    return;
+  }
+
+  // Fallback canvas
+  const canvas = document.createElement('canvas');
+  canvas.id = 'qr-canvas';
+  canvas.width = canvas.height = 200;
+  wrap.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0,0,200,200);
+  ctx.fillStyle = '#2a2520';
+  ctx.font = '9px Courier New';
+  ctx.textAlign = 'center';
+  ctx.fillText('Open URL on phone:', 100, 90);
+  const words = url.match(/.{1,28}/g)||[];
+  words.forEach((w,i) => ctx.fillText(w, 100, 106 + i*12));
+}
+
+// ── Troubleshoot ──────────────────────────────────────────────
+function toggleTrouble() {
+  const btn  = document.getElementById('trouble-toggle');
+  const body = document.getElementById('trouble-body');
+  const open = btn.classList.toggle('open');
+  body.classList.toggle('visible', open);
+}
+
+// ── Util ──────────────────────────────────────────────────────
+function setStatus(msg) {
+  const el = document.getElementById('topbar-status');
+  if(el) el.textContent = msg;
+  const fl = document.getElementById('footer-left');
+  if(fl) fl.textContent = msg;
+}
+
+// ── Boot ──────────────────────────────────────────────────────
+// Load qrcodejs from CDN for QR generation
+(function(){
+  const s = document.createElement('script');
+  s.src = 'https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js';
+  s.onload = init;
+  s.onerror = init; // continue without QR lib
+  document.head.appendChild(s);
+})();
+</script>
+</body>
+</html>

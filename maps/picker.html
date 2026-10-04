@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MAPS — FLŌYÉL</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#13131a; --panel:#1e1e28; --panel2:#171720; --border:#2a2a38; --dimmer:#1c1c26;
+    --green:#5fcf89; --green-dim:#3a8a58; --purple:#bf95cb; --purple-dim:#7a5e85;
+    --amber:#e8b84b; --red:#cf5f5f; --text:#c8c8d8; --text-dim:#6a6a7a;
+    --mono:'Fira Code', ui-monospace, Consolas, monospace;
+    --display:'VT323', ui-monospace, monospace;
+  }
+  *{box-sizing:border-box; margin:0; padding:0; border-radius:0 !important;}
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--mono); font-size:11px;
+    min-height:100vh; position:relative;
+  }
+  body::before{
+    content:''; position:fixed; inset:0; pointer-events:none; z-index:99;
+    background:repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0px, rgba(255,255,255,.03) 1px, transparent 1px, transparent 4px);
+  }
+  .wrap{ max-width:640px; margin:0 auto; padding:56px 24px 80px; }
+
+  .label{ font-size:9px; letter-spacing:3px; text-transform:uppercase; color:var(--text-dim); margin-bottom:6px; }
+  .title{ font-family:var(--display); font-size:34px; letter-spacing:2px; text-transform:uppercase; color:var(--text); line-height:1; margin-bottom:36px; }
+  .title span{ color:var(--green); }
+
+  #list{ display:flex; flex-direction:column; gap:2px; }
+  .item{
+    display:flex; align-items:center; gap:12px; padding:14px 16px;
+    background:var(--panel); border:1px solid var(--border); cursor:pointer;
+  }
+  .item:hover{ border-color:var(--green); }
+  .item:hover .item-name{ color:var(--green); }
+  .item-name{ flex:1; font-size:12px; letter-spacing:1px; text-transform:uppercase; color:var(--text); }
+  .item-arrow{ font-size:10px; color:var(--text-dim); }
+
+  #empty{ display:none; padding:24px 0; color:var(--text-dim); font-size:10px; letter-spacing:.5px; line-height:2; }
+  #empty code{ color:var(--amber); background:var(--dimmer); border:1px solid var(--border); padding:1px 6px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="label">SYMBOL BY FLŌYÉL</div>
+  <div class="title">MAPS <span>::</span> FLŌYÉL</div>
+
+  <div id="list"></div>
+  <div id="empty">
+    NO MAPS FOUND<br><br>
+    DROP A MAP'S .HTML FILE DIRECTLY INTO <code>maps/</code> AND RELOAD.
+  </div>
+</div>
+
+<script>
+async function init() {
+  const list = document.getElementById('list');
+  const empty = document.getElementById('empty');
+
+  if (!window.pywebview) {
+    empty.innerHTML = 'MAPS CAN ONLY BE LISTED WHEN RUNNING INSIDE THE HUB.';
+    empty.style.display = 'block';
+    return;
+  }
+
+  const maps = await window.pywebview.api.list_map_files();
+  if (!maps.length) { empty.style.display = 'block'; return; }
+
+  maps.forEach(m => {
+    const item = document.createElement('div');
+    item.className = 'item';
+    item.innerHTML = `<div class="item-name">${m.name}</div><div class="item-arrow">▶</div>`;
+    item.addEventListener('click', () => {
+      window.pywebview.api.spawn_or_focus('map-' + m.filename, m.path);
+    });
+    list.appendChild(item);
+  });
+}
+if (window.pywebview && window.pywebview.api) {
+  init();
+} else {
+  // window.pywebview can exist a moment before its .api methods are actually
+  // callable — waiting for this event avoids checking too early and getting
+  // a false "not running inside the hub" result.
+  window.addEventListener('pywebviewready', init);
+}
+</script>
+</body>
+</html>

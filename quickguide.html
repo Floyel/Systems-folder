@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>"symbols" by Flōyél — Quickguide</title>
+<style>
+  :root{
+    --xp-titlebar-1:#1747C8; --xp-titlebar-2:#3E93F7; --xp-titlebar-3:#0A246A;
+    --xp-body:#ECE9D8; --xp-white:#FFFFFF; --xp-border:#0A246A;
+    --xp-face:#ECE9D8; --xp-face-hi:#FFFFFF; --xp-face-lo:#9A9A8C;
+    --xp-taskbar-1:#245EDC; --xp-taskbar-2:#3F8CF3; --xp-taskbar-3:#1941A5;
+    --xp-select:#316AC5; --xp-link:#0000EE; --xp-green:#3C9E3C;
+    --font: Tahoma, "Segoe UI", Verdana, sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; font-family:var(--font); font-size:12px; color:#000;
+    background:#6B8CC7 url('') ; padding-top:56px;
+  }
+  a{color:var(--xp-link);}
+
+  /* ── Floating nav taskbar ─────────────────────────────────────── */
+  #navbar{
+    position:fixed; top:0; left:0; right:0; height:48px; z-index:500;
+    background:linear-gradient(180deg, var(--xp-taskbar-2), var(--xp-taskbar-1) 60%, var(--xp-taskbar-3));
+    border-bottom:2px solid #0C2D6B;
+    display:flex; align-items:center; gap:8px; padding:0 10px;
+    box-shadow:0 2px 6px rgba(0,0,0,.4);
+  }
+  .xp-btn{
+    font-family:var(--font); font-size:12px; color:#fff; cursor:pointer;
+    background:linear-gradient(180deg, #4C8EF0, #1E5FD0);
+    border:1px solid #0C2D6B; border-radius:3px;
+    padding:6px 12px; display:flex; align-items:center; gap:5px;
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.5);
+    user-select:none;
+  }
+  .xp-btn:hover{background:linear-gradient(180deg, #5C9EFF, #2E6FE0);}
+  .xp-btn:active{background:linear-gradient(180deg, #1E5FD0, #4C8EF0); box-shadow:inset 0 1px 3px rgba(0,0,0,.4);}
+  .xp-btn.disabled{opacity:.4; cursor:default; pointer-events:none;}
+  #navTitle{
+    color:#fff; font-weight:bold; font-size:13px; text-shadow:0 1px 1px rgba(0,0,0,.5);
+    margin-left:6px; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  #indexToggle{margin-right:auto;}
+
+  /* ── Collapsible index drawer ─────────────────────────────────── */
+  #indexDrawer{
+    position:fixed; top:48px; left:0; width:280px; max-height:calc(100vh - 58px);
+    overflow-y:auto; z-index:499; display:none;
+    background:var(--xp-body); border:2px solid var(--xp-border); border-top:none;
+    box-shadow:2px 4px 10px rgba(0,0,0,.4);
+  }
+  #indexDrawer.open{display:block;}
+  #indexDrawer .idx-head{
+    background:linear-gradient(180deg, var(--xp-titlebar-2), var(--xp-titlebar-1));
+    color:#fff; font-weight:bold; padding:6px 10px; font-size:12px;
+  }
+  #indexDrawer a{
+    display:block; padding:7px 12px; color:#000; text-decoration:none;
+    border-bottom:1px solid #D8D5C4; font-size:12px;
+  }
+  #indexDrawer a:hover{background:var(--xp-select); color:#fff;}
+
+  /* ── Page frame ───────────────────────────────────────────────── */
+  #page{ max-width:840px; margin:14px auto 60px; padding:0 12px; }
+
+  .xpwin{
+    background:var(--xp-body); border:2px solid var(--xp-border); border-radius:6px 6px 3px 3px;
+    box-shadow:3px 3px 12px rgba(0,0,0,.35); margin-bottom:18px; overflow:hidden;
+  }
+  .xpwin .titlebar{
+    background:linear-gradient(180deg, var(--xp-titlebar-2), var(--xp-titlebar-1) 55%, var(--xp-titlebar-3));
+    color:#fff; font-weight:bold; font-size:13px; padding:6px 8px;
+    display:flex; align-items:center; gap:6px; text-shadow:0 1px 1px rgba(0,0,0,.4);
+  }
+  .xpwin .titlebar .tbtn{
+    width:16px; height:15px; background:linear-gradient(180deg,#F3B9A8,#D1301E);
+    border:1px solid #7A1400; border-radius:2px; margin-left:4px;
+  }
+  .xpwin .titlebar .tbtn.min,.xpwin .titlebar .tbtn.max{background:linear-gradient(180deg,#fff,#B9CBEA); border-color:#4A6FA5;}
+  .xpwin .body{ background:var(--xp-white); padding:14px 18px; line-height:1.65; }
+  .xpwin .body h3{margin-top:0;}
+  .xpwin .body p{margin:.6em 0;}
+  .xpwin .body ul, .xpwin .body ol{padding-left:22px;}
+  .xpwin .body li{margin:.35em 0;}
+
+  h1.hero{ color:#fff; text-align:center; text-shadow:0 2px 3px rgba(0,0,0,.4); margin:10px 0 16px; }
+
+  /* ── OS picker ────────────────────────────────────────────────── */
+  .os-picker{ display:flex; gap:6px; margin-bottom:12px; }
+  .os-btn{
+    font-family:var(--font); font-size:12px; padding:6px 14px; cursor:pointer;
+    background:var(--xp-face); border:2px outset var(--xp-face-hi); border-radius:2px;
+  }
+  .os-btn.active{ border-style:inset; background:#D6D2C2; }
+  .os-block{display:none;}
+  body[data-os="mac"] .os-block.os-mac{display:block;}
+  body[data-os="win"] .os-block.os-win{display:block;}
+  body[data-os="linux"] .os-block.os-linux{display:block;}
+
+  /* ── Command boxes ────────────────────────────────────────────── */
+  .cmd{
+    display:flex; align-items:center; justify-content:space-between; gap:8px;
+    background:#F5F5EE; border:1px inset #B8B5A2; border-radius:2px;
+    padding:6px 10px; margin:6px 0; font-family:Consolas, "Courier New", monospace; font-size:12px;
+  }
+  .cmd code{white-space:pre-wrap; word-break:break-all;}
+  .copy-btn{
+    flex:none; font-family:var(--font); font-size:11px; cursor:pointer;
+    background:var(--xp-face); border:2px outset var(--xp-face-hi); padding:3px 9px; border-radius:2px;
+  }
+  .copy-btn:active{border-style:inset;}
+
+  /* ── Command reference table ─────────────────────────────────── */
+  table.cmdref{ width:100%; border-collapse:collapse; font-size:12px; margin:8px 0; }
+  table.cmdref th{ background:#D6E4F7; border:1px solid #9AAFC7; padding:5px 8px; text-align:left; }
+  table.cmdref td{ border:1px solid #D8D5C4; padding:5px 8px; vertical-align:top; }
+  table.cmdref code{ font-family:Consolas, monospace; color:#0A246A; }
+
+  .note{
+    background:#FFF6D8; border:1px solid #E0C060; border-radius:2px;
+    padding:8px 12px; margin:10px 0; font-size:12px;
+  }
+  .note.warn{ background:#FFE3E0; border-color:#D08A85; }
+  .note b{color:#7A4A00;}
+  .note.warn b{color:#8A2A20;}
+
+  .steps{counter-reset:step;}
+  .steps li{list-style:none; counter-increment:step; position:relative; padding-left:26px; margin-bottom:8px;}
+  .steps li::before{
+    content:counter(step); position:absolute; left:0; top:0;
+    width:18px; height:18px; background:var(--xp-titlebar-1); color:#fff;
+    border-radius:50%; font-size:10px; text-align:center; line-height:18px; font-weight:bold;
+  }
+</style>
+</head>
+<body data-os="mac">
+
+<div id="navbar">
+  <div class="xp-btn" id="indexToggle">📁 Index</div>
+  <div class="xp-btn" id="backBtn">◀ Back</div>
+  <div class="xp-btn" id="fwdBtn">Forward ▶</div>
+  <div id="navTitle">"symbols" by Flōyél — Quickguide</div>
+</div>
+
+<div id="indexDrawer">
+  <div class="idx-head">Sections</div>
+  <a href="#install" data-nav>Getting Started / Install</a>
+  <a href="#hub" data-nav>The Hub</a>
+  <a href="#profile" data-nav>Profile</a>
+  <a href="#settings" data-nav>Settings</a>
+  <a href="#terminal" data-nav>Terminal Commands</a>
+  <a href="#library" data-nav>Library</a>
+  <a href="#buy" data-nav>Buying &amp; Wallet</a>
+  <a href="#territories" data-nav>Territories</a>
+  <a href="#maps" data-nav>Maps</a>
+  <a href="#misc" data-nav>Misc</a>
+  <a href="#expand" data-nav>Adding More Later</a>
+</div>
+
+<div id="page">
+
+<h1 class="hero">"symbols" by Flōyél — Quickguide</h1>
+
+<div class="xpwin">
+  <div class="titlebar"><span>Welcome.txt</span></div>
+  <div class="body">
+    <p>This is the full guide to the Flōyél Hub — a program that gathers the Library, Territories, and Maps into one place on your computer, with a small terminal for quick direct access to everything.</p>
+    <p>You don't need to know anything about Python or terminals to use this. Every command you'll ever need to type is shown below in a copy-paste box — click Copy, then paste it in.</p>
+  </div>
+</div>
+
+<div class="xpwin" id="install">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Getting Started</div>
+  <div class="body">
+    <p>Two different "terminals" get mentioned in this guide, and they are not the same thing:</p>
+    <ul>
+      <li><b>Your computer's terminal</b> — a program on your Mac/Windows/Linux machine (Terminal, Command Prompt, PowerShell). You use this <i>once</i>, to install a couple of things and start the Hub.</li>
+      <li><b>The Hub's own terminal</b> — a small window <i>inside</i> the Hub itself, for typing quick commands like <code>open 0001</code>. Nothing you type there touches your computer's real terminal.</li>
+    </ul>
+    <p>This section is about the first one. Pick your system:</p>
+    <div class="os-picker">
+      <div class="os-btn active" data-os="mac">Mac</div>
+      <div class="os-btn" data-os="win">Windows</div>
+      <div class="os-btn" data-os="linux">Linux</div>
+    </div>
+
+    <h3>1. Open a terminal</h3>
+    <div class="os-block os-mac"><p>Open <b>Terminal</b> (search for it with Spotlight — Cmd+Space, type "Terminal").</p></div>
+    <div class="os-block os-win"><p>Open <b>Command Prompt</b> or <b>PowerShell</b> (search "cmd" or "PowerShell" in the Start menu).</p></div>
+    <div class="os-block os-linux"><p>Open your terminal application (varies by distro — usually in your applications menu).</p></div>
+
+    <h3>2. Check Python is installed</h3>
+    <div class="os-block os-mac"><div class="cmd"><code>python3 --version</code><button class="copy-btn">Copy</button></div></div>
+    <div class="os-block os-win"><div class="cmd"><code>python --version</code><button class="copy-btn">Copy</button></div></div>
+    <div class="os-block os-linux"><div class="cmd"><code>python3 --version</code><button class="copy-btn">Copy</button></div></div>
+    <p>If you see a version number, you're set. If not, get Python from <a href="https://python.org/downloads" target="_blank">python.org/downloads</a> — on Windows, tick <b>"Add python.exe to PATH"</b> during install, this step is easy to miss.</p>
+
+    <h3>3. Install the two things the Hub needs</h3>
+    <div class="os-block os-mac"><div class="cmd"><code>pip3 install pywebview flask</code><button class="copy-btn">Copy</button></div></div>
+    <div class="os-block os-win"><div class="cmd"><code>pip install pywebview flask</code><button class="copy-btn">Copy</button></div></div>
+    <div class="os-block os-linux"><div class="cmd"><code>pip3 install pywebview flask</code><button class="copy-btn">Copy</button></div></div>
+    <div class="note">You do <b>not</b> need to install ngrok yourself — the Hub downloads it automatically, only if and when you first open Territories.</div>
+
+    <h3>4. Move into the folder and start the Hub</h3>
+    <p>In your terminal, type <code>cd </code> (with a trailing space), then drag the <b>System Folder</b> from a Finder/Explorer window straight into the terminal — it fills in the path for you. Press Enter, then run:</p>
+    <div class="os-block os-mac"><div class="cmd"><code>python3 hub.py</code><button class="copy-btn">Copy</button></div></div>
+    <div class="os-block os-win"><div class="cmd"><code>python hub.py</code><button class="copy-btn">Copy</button></div></div>
+    <div class="os-block os-linux"><div class="cmd"><code>python3 hub.py</code><button class="copy-btn">Copy</button></div></div>
+    <p>A small window opens — that's the Hub. Leave the terminal window open in the background; closing it stops the Hub.</p>
+  </div>
+</div>
+
+<div class="xpwin" id="hub">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;The Hub</div>
+  <div class="body">
+    <p>The Hub is a small window: a terminal on one side, a taskbar strip along the edge. The taskbar has three icons — <b>Library</b> (triangle), <b>Territories</b> (circle), <b>Maps</b> (square). Click one to open it in its own window; click it again to bring that window back to the front instead of opening a second copy.</p>
+    <p>Click the compass/Start button in the corner of the taskbar to open the Start menu: <a href="#profile" data-nav>Profile</a>, Guide (this document), <a href="#misc" data-nav>Misc</a>, and <a href="#settings" data-nav>Settings</a>.</p>
+  </div>
+</div>
+
+<div class="xpwin" id="profile">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Profile</div>
+  <div class="body">
+    <ul>
+      <li><b>Avatar &amp; name</b> — click the circle to upload a picture, type a name underneath. Both are saved.</li>
+      <li><b>Wallet</b> — a text field to save a wallet address, plus a Save button. This is a separate, simple saved-address box — it is <i>not</i> the same as connecting your real wallet in the Library (see <a href="#buy" data-nav>Buying &amp; Wallet</a>).</li>
+      <li><b>Favourites</b> — you add these from the <a href="#terminal" data-nav>terminal</a> with <code>fav &lt;id&gt;</code>, this panel shows and lets you remove them.</li>
+      <li><b>Trail</b> — every command you've typed this session, in order. Click one to run it again.</li>
+      <li><b>Terminal themes</b> — save your current colour setup under a name (from <a href="#settings" data-nav>Customize</a>), then re-apply or delete it later.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="xpwin" id="settings">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Settings</div>
+  <div class="body">
+    <ul>
+      <li><b>Customize</b> — everything about how the Hub looks: which side the taskbar docks to, icon colours (and uploading your own icon images), four ready-made colour themes, background/taskbar colours (with an optional gradient), text/accent/border colours, a background image, and font style.</li>
+      <li><b>Library browser</b> — choose whether Library opens inside the Hub ("Built-in") or in a real browser on your computer. See <a href="#buy" data-nav>Buying &amp; Wallet</a> for why this matters.</li>
+      <li><b>Data &amp; sync</b> — opens the Hub's own settings file directly on your computer, in whatever program your OS uses for that file type.</li>
+      <li><b>Network</b> — shows whether ngrok (used for phone access to Territories) is currently running.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="xpwin" id="terminal">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Terminal Commands</div>
+  <div class="body">
+    <p>Type any of these into the Hub's own terminal (not your computer's terminal). Press Tab while typing to see and cycle through suggestions.</p>
+    <table class="cmdref">
+      <tr><th>Command</th><th>What it does</th></tr>
+      <tr><td><code>open &lt;id&gt;</code></td><td>Open a "symbol's" viewer file directly, skipping the Library.</td></tr>
+      <tr><td><code>read &lt;id&gt;</code> <i>(or <code>manifest</code>)</i></td><td>Print a "symbol's" info right in the HUB terminal.</td></tr>
+      <tr><td><code>unfold &lt;id&gt;</code></td><td>Open the raw "symbol" file directly.</td></tr>
+      <tr><td><code>fav</code></td><td>List your favourites.</td></tr>
+      <tr><td><code>fav &lt;id&gt;</code></td><td>Add a "symbol" to your favourites.</td></tr>
+      <tr><td><code>fav remove &lt;id&gt;</code></td><td>Remove one from favourites.</td></tr>
+      <tr><td><code>list</code></td><td>List "symbols", 24 per page.</td></tr>
+      <tr><td><code>list.2</code>, <code>list.all</code></td><td>Jump to page 2, or list everything at once.</td></tr>
+      <tr><td><code>n</code> / <code>b</code></td><td>Next / previous page of a list.</td></tr>
+      <tr><td><code>library</code> <i>(or <code>lib</code>)</i></td><td>Open or focus the Library window.</td></tr>
+      <tr><td><code>territories</code> <i>(or <code>terr</code>)</i></td><td>Open or focus the Territories window.</td></tr>
+      <tr><td><code>trail</code></td><td>Show this session's command history.</td></tr>
+      <tr><td><code>clear</code> <i>(or <code>cls</code>)</i></td><td>Clear the terminal screen.</td></tr>
+      <tr><td><code>intro</code></td><td>Show the terminal's intro message again.</td></tr>
+      <tr><td><code>help</code> <i>(or <code>?</code>)</i></td><td>List every command, or <code>help &lt;command&gt;</code> for detail on one.</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="xpwin" id="library">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Library</div>
+  <div class="body">
+    <p>Browse all the "symbols" — search, filter, sort, view each one's manifest and (if minted) its chain data. Open it from the Hub's taskbar, or type <code>library</code> in the terminal.</p>
+    <p>Open Settings → Customize (see <a href="#settings" data-nav>Settings</a>) to choose whether Library opens inside the Hub or in a real browser — this choice matters most for <a href="#buy" data-nav>buying and wallet connection</a>.</p>
+  </div>
+</div>
+
+<div class="xpwin" id="buy">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Buying &amp; Wallet</div>
+  <div class="body">
+    <h3>Connecting your wallet</h3>
+    <p>Library has its own "Connect Wallet" button (top of the window) — this is a <b>real</b> connection to MetaMask or a similar wallet extension. Because of how it works, it only functions when Library is set to open in a real browser (Settings → Library browser → pick your browser), since the built-in mode has no extensions at all.</p>
+    <div class="note">This is different from the Wallet field in your <a href="#profile" data-nav>Profile</a> panel — that one just saves an address for later; it isn't connected to this real wallet flow.</div>
+
+    <h3>Setting Up Your Wallet</h3>
+    <p>For the full System Folder experience, a browser extension wallet (MetaMask is the most common) is recommended. Mobile wallet apps exist too and work similarly, if you'd rather use your phone.</p>
+    <p>If you've received a wallet from us with "symbols" already on it: install MetaMask, choose <b>Import an existing wallet</b> during setup, and enter the 12-word seed phrase you were given. Your "symbols" will appear once it's imported.</p>
+
+    <div class="note warn">
+      <b>Important:</b> a seed phrase you didn't generate yourself is not fully private — treat anything on a gifted wallet as visible to whoever gave it to you. Set up your own wallet below and move your "symbol" to it as soon as you can.
+    </div>
+
+    <h3>Setting Up Your Own Wallet</h3>
+    <ol class="steps">
+      <li>In MetaMask, choose <b>Create a new wallet</b> instead of importing.</li>
+      <li>Write down the new seed phrase it gives you, on paper, somewhere private — this is the only copy that matters.</li>
+      <li>Confirm the seed phrase when asked, and set a password.</li>
+      <li>Copy your new wallet's address (starts with 0x…).</li>
+      <li>Switch back to your gifted wallet in MetaMask, open the "symbol" on Basescan, and use its transfer/send function to send it to your new address.</li>
+      <li>Switch to your new wallet and confirm the "symbol" has arrived.</li>
+    </ol>
+
+    <div class="note warn">
+      <b>Never share a seed phrase with anyone, for any reason</b> — not "support," not a giveaway, not a friend. Anyone who has it owns everything in that wallet, permanently, with no way to undo it. Don't type it into a website, a chat, or a screenshot. Write it down on paper and keep that somewhere private.
+    </div>
+
+    <h3>Buying a pack</h3>
+    <p>Click Buy in the Library to open the guide built into it:</p>
+    <ol class="steps">
+      <li>Opens the "symbol" sale contract on Basescan.</li>
+      <li>Click <b>Connect to Web3</b>, connect your wallet — must be on the <b>Base</b> network.</li>
+      <li>Make sure you have at least <b>0.0033 ETH</b> on Base.</li>
+      <li>Find <b>buyPack</b> in the list, expand it.</li>
+      <li>In the <b>value</b> field, enter <b>0.0033</b>, select ETH.</li>
+      <li>Click <b>Write</b>, confirm in your wallet.</li>
+      <li>You receive 5 random "symbol" Alpha tokens.</li>
+    </ol>
+    <div class="note">First 5 packs per wallet can be bought back-to-back; after that there's a 24-hour cooldown. "symbols" show as unrevealed on marketplaces until their metadata resolves — that's expected for Alpha.</div>
+
+    <h3>Updating chain data</h3>
+    <p>Click <b>Update</b> in the Library — it fetches the latest on-chain info directly, no separate program to run. For a full rebuild from scratch, there's also a script:</p>
+    <div class="cmd"><code>python3 chain_index.py</code><button class="copy-btn">Copy</button></div>
+    <p>(run from inside the <code>library/</code> folder, in your computer's terminal)</p>
+  </div>
+</div>
+
+<div class="xpwin" id="territories">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Territories</div>
+  <div class="body">
+    
+    <h3>Opening Territories</h3>
+    <p>Augmented-reality spaces you visit through your phone's camera. Open from the taskbar, or type <code>territories</code>.</p>
+<p>Click <b>Launch</b> on a territory and a QR code appears. Scan it with your phone's camera — it opens that territory on your phone through the Hub, connected over ngrok.</p>
+
+<h3>Opening a territory without the Hub</h3>
+<p>If the territory's files are already on your phone — copied over directly, or hosted on GitHub — you can open its page straight from your phone's browser. This works because each territory is fully self-contained.</p>
+  </div>
+</div>
+
+<div class="xpwin" id="maps">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Maps</div>
+  <div class="body">
+    <p>Click the square icon in the taskbar to see every map that's been added — click one to open it.</p>
+  </div>
+</div>
+
+<div class="xpwin" id="misc">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Misc</div>
+  <div class="body">
+    <p>Whatever's dropped into the <code>misc/</code> folder shows up automatically in the Misc panel — no setup needed. Currently:</p>
+    <ul>
+      <li><b>HEX5</b> — Random logic to generate element codes for "symbols".</li>
+      <li><b>Screensaver</b> — an animated "symbol" screensaver. Note: opens in a browser tab rather than a Hub window</li>
+      <li><b>Symbol Wheel</b> — a spinning random-draw wheel that picks a "symbol" for you.</li>
+      <li><b>Lumasynth</b> — an image-to-sound instrument: drop a "symbol" gif in, sculpt it into a tone, print it to a file.</li>
+      <li><b>Tao Te Ching reader</b> — a text-based reader with multiple translations.</li>
+    </ul>
+  </div>
+</div>
+
+<div class="xpwin" id="expand">
+  <div class="titlebar"><span class="tbtn min"></span><span class="tbtn max"></span><span class="tbtn"></span>&nbsp;Adding More Later</div>
+  <div class="body">
+    <p>Nothing needs registering anywhere — just drop files in the right place and they show up.</p>
+    <ul>
+      <li><b>A new "symbol"</b> — a new folder inside <code>symbols/</code>, named like <code>0000 - somename</code>, containing its files.</li>
+      <li><b>A new map</b> — drop the map's <code>.html</code> file directly into <code>maps/maps/</code>.</li>
+      <li><b>A new territory</b> — a new folder inside <code>territories/</code> containing a <code>webar-scene.html</code>. Add a <code>territory-data.js</code> alongside it for a full description card; without one, it still shows up with a plain card.</li>
+    </ul>
+  </div>
+</div>
+
+</div>
+
+<script>
+// ── OS picker ──────────────────────────────────────────────────────
+document.querySelectorAll('.os-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.os-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    document.body.dataset.os = b.dataset.os;
+  });
+});
+
+// ── Copy buttons ─────────────────────────────────────────────────────
+document.addEventListener('click', e=>{
+  if(!e.target.classList.contains('copy-btn')) return;
+  const code = e.target.previousElementSibling.textContent;
+  navigator.clipboard.writeText(code).then(()=>{
+    const orig = e.target.textContent;
+    e.target.textContent = 'Copied!';
+    setTimeout(()=> e.target.textContent = orig, 1200);
+  });
+});
+
+// ── Back/forward navigation history + collapsible index ─────────────
+const indexDrawer = document.getElementById('indexDrawer');
+document.getElementById('indexToggle').addEventListener('click', ()=>{
+  indexDrawer.classList.toggle('open');
+});
+
+let history = [location.hash || '#top'];
+let pointer = 0;
+const backBtn = document.getElementById('backBtn');
+const fwdBtn = document.getElementById('fwdBtn');
+
+function updateNavButtons(){
+  backBtn.classList.toggle('disabled', pointer <= 0);
+  fwdBtn.classList.toggle('disabled', pointer >= history.length - 1);
+}
+function goTo(hash, record){
+  document.querySelector(hash)?.scrollIntoView({behavior:'smooth', block:'start'});
+  if(record){
+    history = history.slice(0, pointer + 1);
+    history.push(hash);
+    pointer = history.length - 1;
+  }
+  updateNavButtons();
+  indexDrawer.classList.remove('open');
+}
+document.querySelectorAll('a[data-nav]').forEach(a=>{
+  a.addEventListener('click', e=>{
+    e.preventDefault();
+    goTo(a.getAttribute('href'), true);
+  });
+});
+backBtn.addEventListener('click', ()=>{
+  if(pointer <= 0) return;
+  pointer--; goTo(history[pointer], false);
+});
+fwdBtn.addEventListener('click', ()=>{
+  if(pointer >= history.length - 1) return;
+  pointer++; goTo(history[pointer], false);
+});
+updateNavButtons();
+</script>
+</body>
+</html>
