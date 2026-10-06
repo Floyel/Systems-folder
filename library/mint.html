@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<title>Mint Pack</title>
+<style>
+:root {
+  --bg:      #2a2a34;
+  --bg2:     #32323e;
+  --bg3:     #3c3c4a;
+  --border:  #4a4a5a;
+  --green:   #5fcf89;
+  --purple:  #bf95cb;
+  --text:    #c8c8d8;
+  --dim:     #7a7a8a;
+  --gold:    #d4a843;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:'Courier New',monospace;
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+}
+
+/* ── DARK OVERLAY (covers everything during reveal) ── */
+#overlay{
+  position:fixed;inset:0;
+  background:#0a0a10;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity 1s ease;
+  z-index:50;
+  cursor:pointer;
+}
+#overlay.dark{opacity:1;pointer-events:auto;}
+
+/* ── ROLL TEXT over overlay ── */
+#rollText{
+  position:fixed;
+  top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  z-index:60;
+  text-align:center;
+  pointer-events:none;
+  opacity:0;
+  transition:opacity 0.4s;
+}
+#rollText.visible{opacity:1;}
+#rollTitle{
+  font-size:11px;letter-spacing:4px;color:var(--dim);
+  text-transform:uppercase;margin-bottom:12px;
+}
+#rollCount{
+  font-size:42px;letter-spacing:2px;color:var(--green);
+  text-shadow:0 0 40px rgba(95,207,137,0.4);
+}
+#rollSub{
+  font-size:11px;color:var(--dim);letter-spacing:2px;margin-top:8px;
+}
+#dismissHint{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  font-size:10px;color:var(--dim);letter-spacing:2px;
+  z-index:61;opacity:0;transition:opacity 0.6s;
+  pointer-events:none;
+}
+#dismissHint.visible{opacity:1;}
+
+/* ── MAIN UI ── */
+#mainUI{
+  display:flex;flex-direction:column;align-items:center;gap:32px;
+  transition:opacity 0.4s;
+}
+#mainUI.hidden{opacity:0;pointer-events:none;}
+
+.brand{font-size:11px;letter-spacing:4px;color:var(--dim);text-transform:uppercase;}
+
+#mintBtn{
+  padding:14px 40px;
+  border:1px solid var(--green);border-radius:10px;
+  background:transparent;color:var(--green);
+  font-family:inherit;font-size:14px;letter-spacing:3px;
+  cursor:pointer;text-transform:uppercase;
+  transition:background 0.2s,box-shadow 0.2s;
+  position:relative;overflow:hidden;
+}
+#mintBtn:hover{
+  background:rgba(95,207,137,0.08);
+  box-shadow:0 0 30px rgba(95,207,137,0.2);
+}
+#mintBtn:disabled{opacity:0.4;cursor:not-allowed;}
+#mintBtn .btn-sub{
+  display:block;font-size:9px;letter-spacing:2px;color:var(--dim);
+  margin-top:4px;text-align:center;
+}
+
+/* ── PACK HISTORY PANEL ── */
+#historyPanel{
+  width:420px;max-width:90vw;
+}
+#historyTabs{
+  display:flex;gap:0;border-bottom:1px solid var(--border);margin-bottom:0;
+}
+.htab{
+  padding:6px 14px;font-size:10px;letter-spacing:2px;color:var(--dim);
+  cursor:pointer;border-bottom:2px solid transparent;transition:all 0.15s;
+  text-transform:uppercase;background:none;border-top:none;border-left:none;border-right:none;
+  font-family:inherit;
+}
+.htab:hover{color:var(--text);}
+.htab.active{color:var(--green);border-bottom-color:var(--green);}
+
+.history-list{
+  max-height:200px;overflow-y:auto;
+  scrollbar-width:thin;
+}
+.history-list::-webkit-scrollbar{width:4px;}
+.history-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px;}
+
+.pack-item{
+  display:flex;align-items:center;gap:8px;
+  padding:8px 10px;border-bottom:1px solid var(--bg3);
+  cursor:pointer;transition:background 0.1s;
+  position:relative;
+}
+.pack-item:hover{background:var(--bg2);}
+.pack-name{
+  flex:1;font-size:11px;color:var(--text);
+  cursor:text;outline:none;
+}
+.pack-name:focus{color:var(--green);}
+.pack-date{font-size:10px;color:var(--dim);}
+.pack-count{
+  font-size:10px;color:var(--dim);
+  border:1px solid var(--border);border-radius:3px;
+  padding:1px 5px;
+}
+.pack-open{
+  font-size:10px;color:var(--purple);cursor:pointer;
+  background:none;border:none;font-family:inherit;padding:0 4px;
+}
+.pack-open:hover{color:var(--green);}
+.pack-del{
+  font-size:12px;color:var(--bg3);cursor:pointer;
+  background:none;border:none;font-family:inherit;padding:0 2px;
+  transition:color 0.1s;
+}
+.pack-del:hover{color:#cf6f6f;}
+
+.history-empty{
+  padding:20px;text-align:center;
+  font-size:10px;color:var(--dim);letter-spacing:1px;
+}
+
+/* pack ctx menu */
+#packCtxMenu{
+  position:fixed;background:var(--bg2);border:1px solid var(--border);
+  border-radius:7px;padding:4px 0;z-index:9000;display:none;min-width:160px;
+  box-shadow:0 6px 20px rgba(0,0,0,0.4);
+}
+.pctx-item{
+  padding:7px 14px;font-size:11px;color:var(--text);cursor:pointer;
+  font-family:inherit;transition:background 0.1s;
+}
+.pctx-item:hover{background:var(--bg3);color:var(--green);}
+.pctx-sep{height:1px;background:var(--border);margin:3px 0;}
+
+/* rename input shown inline */
+#renameModal{
+  position:fixed;inset:0;background:rgba(0,0,0,0.5);
+  z-index:8000;display:none;align-items:center;justify-content:center;
+}
+#renameModal.show{display:flex;}
+.rename-box{
+  background:var(--bg2);border:1px solid var(--border);border-radius:9px;
+  padding:20px;width:300px;
+}
+.rename-box h3{font-size:10px;letter-spacing:2px;color:var(--green);margin-bottom:10px;}
+#renameInput{
+  width:100%;background:var(--bg3);border:1px solid var(--border);border-radius:5px;
+  color:var(--text);font-family:inherit;font-size:12px;padding:6px 8px;outline:none;
+}
+#renameInput:focus{border-color:var(--green);}
+.rename-hint{font-size:10px;color:var(--dim);margin-top:6px;}
+</style>
+</head>
+<body>
+
+<!-- DARK OVERLAY -->
+<div id="overlay"></div>
+<div id="rollText">
+  <div id="rollTitle">opening pack</div>
+  <div id="rollCount"></div>
+  <div id="rollSub"></div>
+</div>
+<div id="dismissHint">click anywhere to close</div>
+<div id="simDisclaimer" style="
+  position:fixed;bottom:48px;left:50%;transform:translateX(-50%);
+  font-size:10px;color:rgba(255,255,255,0.12);letter-spacing:2px;
+  z-index:61;text-align:center;pointer-events:none;
+  font-family:'Courier New',monospace;text-transform:uppercase;
+">simulated mint — not an on-chain transaction</div>
+
+<!-- MAIN UI -->
+<div id="mainUI">
+  <div class="brand">Flōyél — Symbol Pack</div>
+
+  <button id="mintBtn">
+    Open Pack
+    <span class="btn-sub">rolls 4–7 symbols · simulated</span>
+  </button>
+
+  <!-- HISTORY -->
+  <div id="historyPanel">
+    <div id="historyTabs">
+      <button class="htab active" data-tab="recent">Recent</button>
+      <button class="htab" data-tab="saved">Saved</button>
+    </div>
+    <div id="recentList" class="history-list"></div>
+    <div id="savedList" class="history-list" style="display:none;"></div>
+  </div>
+</div>
+
+<!-- PACK CONTEXT MENU -->
+<div id="packCtxMenu">
+  <div class="pctx-item" id="ctxOpenPack">&#9654; Open pack</div>
+  <div class="pctx-item" id="ctxSavePack">&#9733; Save pack</div>
+  <div class="pctx-sep"></div>
+  <div class="pctx-item" id="ctxRenamePack">&#9998; Rename</div>
+  <div class="pctx-sep"></div>
+  <div class="pctx-item" id="ctxDeletePack">&#10005; Delete</div>
+</div>
+
+<!-- RENAME MODAL -->
+<div id="renameModal">
+  <div class="rename-box">
+    <h3>RENAME PACK</h3>
+    <input id="renameInput" type="text" maxlength="32" autocomplete="off"/>
+    <div class="rename-hint">Press Enter to confirm · Esc to cancel</div>
+  </div>
+</div>
+
+<script>
+(function() {
+
+/* ── CONFIG ── */
+var SYMBOLS_API  = "/api/symbols";
+var VIEWER_BASE  = "/symbols/";
+var MAX_RECENT   = 5;
+var MAX_SAVED    = 15;
+var POPUP_W      = 520;
+var POPUP_H      = 660;
+
+/* ── STATE ── */
+var allSymbols  = [];
+var recentPacks = JSON.parse(localStorage.getItem("mintRecent") || "[]");
+var savedPacks  = JSON.parse(localStorage.getItem("mintSaved")  || "[]");
+var ctxTarget   = null;
+var activeTab   = "recent";
+var currentPackSymbols = []; // popups opened in current roll
+
+/* ── POPUP PATTERNS ──
+   Each pattern is a function(count, sw, sh) → array of {left, top}
+   sw/sh = screen width/height
+*/
+var PATTERNS = {
+  scatter: function(count, sw, sh) {
+    var positions = [];
+    var cols = Math.ceil(Math.sqrt(count));
+    var rows = Math.ceil(count / cols);
+    var padX = Math.round(sw * 0.05);
+    var padY = Math.round(sh * 0.08);
+    var cellW = Math.round((sw - padX*2 - POPUP_W) / Math.max(cols-1, 1));
+    var cellH = Math.round((sh - padY*2 - POPUP_H) / Math.max(rows-1, 1));
+    for (var i = 0; i < count; i++) {
+      var col = i % cols;
+      var row = Math.floor(i / cols);
+      positions.push({
+        left: padX + col * cellW + Math.round((Math.random()-0.5) * 40),
+        top:  padY + row * cellH + Math.round((Math.random()-0.5) * 30)
+      });
+    }
+    return positions;
+  },
+  arc: function(count, sw, sh) {
+    var positions = [];
+    var cx = sw / 2 - POPUP_W / 2;
+    var cy = sh * 0.35;
+    var rx = sw * 0.38;
+    var ry = sh * 0.22;
+    for (var i = 0; i < count; i++) {
+      var angle = Math.PI * (0.15 + 0.7 * (i / Math.max(count-1,1)));
+      positions.push({
+        left: Math.round(cx + rx * Math.cos(angle)),
+        top:  Math.round(cy - ry * Math.sin(angle))
+      });
+    }
+    return positions;
+  },
+  diagonal: function(count, sw, sh) {
+    var positions = [];
+    var startX = Math.round(sw * 0.05);
+    var startY = Math.round(sh * 0.06);
+    var stepX  = Math.round((sw * 0.85 - POPUP_W) / Math.max(count-1,1));
+    var stepY  = Math.round((sh * 0.80 - POPUP_H) / Math.max(count-1,1));
+    for (var i = 0; i < count; i++) {
+      positions.push({ left: startX + i*stepX, top: startY + i*stepY });
+    }
+    return positions;
+  },
+  cluster: function(count, sw, sh) {
+    var positions = [];
+    var cx = sw/2 - POPUP_W/2;
+    var cy = sh/2 - POPUP_H/2;
+    var r  = Math.min(sw, sh) * 0.22;
+    for (var i = 0; i < count; i++) {
+      var angle = (2 * Math.PI * i / count) - Math.PI/2;
+      positions.push({
+        left: Math.round(cx + r * Math.cos(angle)),
+        top:  Math.round(cy + r * Math.sin(angle))
+      });
+    }
+    return positions;
+  }
+};
+var patternKeys = Object.keys(PATTERNS);
+
+/* ── EFFECTS ROLL (from op_final.py logic) ── */
+function rollEffects() {
+  var effects = [];
+  var flowActive = false;
+
+  if (Math.random() <= 0.01) {
+    effects.push({ type: "flow_glow" });
+    flowActive = true;
+  }
+  if (!flowActive && Math.random() <= 0.09) {
+    var colors = ["red","green","blue","white"];
+    effects.push({
+      type:   "glow",
+      color:  colors[Math.floor(Math.random()*colors.length)],
+      radius: 25 + Math.floor(Math.random()*26),
+      pulse:  Math.random() <= 0.12,
+      cycle:  Math.random() <= 0.12
+    });
+  }
+  if (Math.random() <= 0.12) {
+    var fcols = ["cyan","magenta","yellow"];
+    effects.push({
+      type:    "filter",
+      color:   fcols[Math.floor(Math.random()*fcols.length)],
+      opacity: 25 + Math.floor(Math.random()*26),
+      pulse:   Math.random() <= 0.12,
+      cycle:   Math.random() <= 0.12
+    });
+  }
+  if (Math.random() <= 0.015) {
+    effects.push({ type: "negative" });
+  }
+  return effects;
+}
+
+function effectsToParams(effects) {
+  var p = {};
+  effects.forEach(function(e) {
+    if (e.type === "flow_glow") {
+      p.gpulse = "true"; p.gcycle = "true";
+    } else if (e.type === "glow") {
+      if (e.color) p.gcolor = e.color;
+      p.gsize  = String(e.radius || 10);
+      if (e.pulse) p.gpulse = "true";
+      if (e.cycle) p.gcycle = "true";
+    } else if (e.type === "filter") {
+      if (e.color) p.fcolor = e.color;
+      p.fopacity = String(e.opacity || 40);
+      if (e.pulse) p.fpulse = "true";
+      if (e.cycle) p.fcycle = "true";
+    } else if (e.type === "negative") {
+      p.negative = "true";
+    }
+  });
+  return p;
+}
+
+function effectsToPills(effects) {
+  var pills = [];
+  effects.forEach(function(e) {
+    if (e.type === "flow_glow") { pills.push("@G"); return; }
+    if (e.type === "negative")  { pills.push("I");  return; }
+    if (e.type === "glow") {
+      var s = e.pulse && e.cycle ? "@G"
+        : e.pulse ? "*G:" + (e.color||"")[0].toUpperCase()
+        : e.cycle ? "\u203BG[" + e.radius + "]"
+        : "G:" + (e.color||"")[0].toUpperCase() + "[" + e.radius + "]";
+      pills.push(s);
+    }
+    if (e.type === "filter") {
+      var s = e.pulse && e.cycle ? "@F"
+        : e.pulse ? "*F:" + (e.color||"")[0].toUpperCase()
+        : e.cycle ? "\u203BF[" + e.opacity + "]"
+        : "F:" + (e.color||"")[0].toUpperCase() + "[" + e.opacity + "]";
+      pills.push(s);
+    }
+  });
+  return pills;
+}
+
+/* ── PACK SIZE ROLL ── */
+function rollPackSize() {
+  var r = Math.random();
+  if (r < 0.50) return 4;
+  if (r < 0.80) return 5;
+  if (r < 0.95) return 6;
+  return 7;
+}
+
+/* ── LOAD SYMBOLS ── */
+function loadSymbols(cb) {
+  if (allSymbols.length) { cb(); return; }
+  fetch(SYMBOLS_API)
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if (!Array.isArray(data)) { alert("Unexpected response from server."); return; }
+      allSymbols = data;
+      console.log("Loaded", allSymbols.length, "symbols");
+      cb();
+    })
+    .catch(function(e){ console.error("loadSymbols error:", e); alert("Could not load symbols. Is the server running?"); });
+}
+
+/* ── AUTO PACK NAME ── */
+function autoPackName(count) {
+  var now = new Date();
+  var pad = function(n){ return n<10?"0"+n:n; };
+  var date = pad(now.getDate()) + "/" + pad(now.getMonth()+1) + "-" + String(now.getFullYear()).slice(2);
+  var time = pad(now.getHours()) + ":" + pad(now.getMinutes());
+  return "Pack " + count + "  \u00b7  " + date + " " + time;
+}
+
+/* ── OPEN PACK ── */
+function openPackSymbols(packData) {
+  var count   = packData.symbols.length;
+  var pattern = packData.pattern || patternKeys[Math.floor(Math.random()*patternKeys.length)];
+  var positions = PATTERNS[pattern](count, screen.width, screen.height);
+  var blockedCount = 0;
+
+  packData.symbols.forEach(function(item, i) {
+    var pos = positions[i] || { left: 100 + i*30, top: 100 + i*30 };
+    var left = Math.max(0, Math.min(pos.left, screen.width  - POPUP_W - 10));
+    var top  = Math.max(0, Math.min(pos.top,  screen.height - POPUP_H - 40));
+
+    var url = VIEWER_BASE + encodeURIComponent(item.folder) + "/viewer.html?folder=" + encodeURIComponent(item.folder);
+    var ep  = item.effectParams;
+    Object.keys(ep).forEach(function(k){ url += "&" + k + "=" + encodeURIComponent(ep[k]); });
+
+    var winName = (item.number || "") + " " + (item.title || item.folder);
+    if (window.pywebview && window.pywebview.api) {
+      window.pywebview.api.open_window(url, POPUP_W, POPUP_H, left, top);
+    } else {
+      var opened = window.open(url, winName,
+        "width=" + POPUP_W + ",height=" + POPUP_H +
+        ",left=" + left + ",top=" + top + ",resizable=yes,scrollbars=yes");
+      // A blocked popup returns null (or, in some browsers, a closed window
+      // object) instead of throwing — this is how we can tell without any
+      // error ever firing.
+      if (!opened || opened.closed) blockedCount++;
+    }
+  });
+
+  if (blockedCount > 0) showPopupBlockedNotice(blockedCount, count);
+}
+
+function showPopupBlockedNotice(blockedCount, total) {
+  var existing = document.getElementById("popupBlockedNotice");
+  if (existing) existing.remove();
+
+  var notice = document.createElement("div");
+  notice.id = "popupBlockedNotice";
+  notice.style.cssText =
+    "position:fixed; bottom:24px; left:50%; transform:translateX(-50%);" +
+    "background:#1a1a1a; color:#f2f2f2; font-family:sans-serif; font-size:14px;" +
+    "padding:14px 20px; border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,.4);" +
+    "z-index:99999; max-width:420px; text-align:center; line-height:1.5;";
+  notice.innerHTML =
+    (total - blockedCount) + " of " + total + " symbols opened — " + blockedCount +
+    " " + (blockedCount === 1 ? "was" : "were") + " blocked by your browser's popup blocker.<br>" +
+    "Click the popup-blocked icon in your address bar, choose <b>Always allow</b>, then try again.";
+
+  var closeBtn = document.createElement("span");
+  closeBtn.textContent = " ✕";
+  closeBtn.style.cssText = "cursor:pointer; opacity:.6; margin-left:8px;";
+  closeBtn.onclick = function(){ notice.remove(); };
+  notice.appendChild(closeBtn);
+
+  document.body.appendChild(notice);
+}
+
+/* ── MINT ROLL ── */
+function doMint() {
+  loadSymbols(function() {
+    var size    = rollPackSize();
+    var pool    = allSymbols.filter(function(s){ return s.manifest && s.gif; });
+    // pick from first 333 if available, else full pool
+    var subset  = pool.filter(function(s){
+      var n = parseInt((s.manifest.number||"").replace(/\D/g,""),10);
+      return !isNaN(n) && n >= 1 && n <= 333;
+    });
+    console.log("Pool:", pool.length, "Subset:", subset.length, "Size:", size);
+    if (subset.length < size) subset = pool;
+    if (subset.length === 0) { alert("No symbols available to mint."); return; }
+
+    // shuffle and pick
+    var shuffled = subset.slice().sort(function(){ return Math.random()-0.5; });
+    var chosen   = shuffled.slice(0, size);
+    var pattern  = patternKeys[Math.floor(Math.random()*patternKeys.length)];
+
+    var packSymbols = chosen.map(function(s) {
+      var eff = rollEffects();
+      return {
+        folder:       s.folder,
+        number:       s.manifest.number || "",
+        title:        s.manifest.title  || s.folder,
+        effects:      eff,
+        effectParams: effectsToParams(eff),
+        effectPills:  effectsToPills(eff)
+      };
+    });
+
+    var ts   = Date.now();
+    var packData = {
+      id:       ts,
+      name:     autoPackName(recentPacks.length + savedPacks.length + 1),
+      pattern:  pattern,
+      ts:       ts,
+      symbols:  packSymbols
+    };
+
+    // store in recent
+    recentPacks.unshift(packData);
+    if (recentPacks.length > MAX_RECENT) recentPacks = recentPacks.slice(0, MAX_RECENT);
+    localStorage.setItem("mintRecent", JSON.stringify(recentPacks));
+
+    // animate
+    var overlay   = document.getElementById("overlay");
+    var rollText  = document.getElementById("rollText");
+    var rollCount = document.getElementById("rollCount");
+    var rollSub   = document.getElementById("rollSub");
+    var hint      = document.getElementById("dismissHint");
+    var mainUI    = document.getElementById("mainUI");
+
+    mainUI.classList.add("hidden");
+    overlay.classList.add("dark");
+    rollText.classList.add("visible");
+    rollCount.textContent = size;
+    rollSub.textContent   = "symbols";
+
+    // open popups after 800ms
+    setTimeout(function() {
+      openPackSymbols(packData);
+      rollText.classList.remove("visible");
+      setTimeout(function(){ hint.classList.add("visible"); }, 400);
+    }, 800);
+
+    // dismiss on click
+    overlay.onclick = function() {
+      overlay.classList.remove("dark");
+      overlay.onclick = null;
+      hint.classList.remove("visible");
+      setTimeout(function(){
+        mainUI.classList.remove("hidden");
+        renderHistory();
+      }, 600);
+    };
+
+    renderHistory();
+  });
+}
+
+document.getElementById("mintBtn").onclick = doMint;
+
+/* ── RENDER HISTORY ── */
+function renderHistory() {
+  renderList("recent", recentPacks, document.getElementById("recentList"));
+  renderList("saved",  savedPacks,  document.getElementById("savedList"));
+}
+
+function renderList(type, packs, container) {
+  container.innerHTML = "";
+  if (!packs.length) {
+    var em = document.createElement("div");
+    em.className = "history-empty";
+    em.textContent = type === "recent" ? "no recent packs" : "no saved packs";
+    container.appendChild(em);
+    return;
+  }
+  packs.forEach(function(pack, idx) {
+    var row = document.createElement("div");
+    row.className = "pack-item";
+
+    var name = document.createElement("span");
+    name.className   = "pack-name";
+    name.textContent = pack.name;
+
+    var cnt = document.createElement("span");
+    cnt.className   = "pack-count";
+    cnt.textContent = pack.symbols.length + " symbols";
+
+    var openBtn = document.createElement("button");
+    openBtn.className   = "pack-open";
+    openBtn.textContent = "\u25b6";
+    openBtn.title = "Open pack";
+    openBtn.onclick = function(e) {
+      e.stopPropagation();
+      openPackSymbols(pack);
+    };
+
+    var delBtn = document.createElement("button");
+    delBtn.className   = "pack-del";
+    delBtn.textContent = "\u00d7";
+    delBtn.title = "Delete";
+    delBtn.onclick = function(e) {
+      e.stopPropagation();
+      if (type === "recent") {
+        recentPacks.splice(idx, 1);
+        localStorage.setItem("mintRecent", JSON.stringify(recentPacks));
+      } else {
+        savedPacks.splice(idx, 1);
+        localStorage.setItem("mintSaved", JSON.stringify(savedPacks));
+      }
+      renderHistory();
+    };
+
+    row.appendChild(name);
+    row.appendChild(cnt);
+    row.appendChild(openBtn);
+    row.appendChild(delBtn);
+
+    // right click
+    row.addEventListener("contextmenu", function(e) {
+      e.preventDefault();
+      ctxTarget = { type: type, idx: idx, pack: pack };
+      var menu = document.getElementById("packCtxMenu");
+      menu.style.display = "block";
+      var x = Math.min(e.clientX, window.innerWidth  - 170);
+      var y = Math.min(e.clientY, window.innerHeight - 120);
+      menu.style.left = x + "px";
+      menu.style.top  = y + "px";
+      // show/hide save option
+      document.getElementById("ctxSavePack").style.display =
+        type === "recent" ? "block" : "none";
+    });
+
+    container.appendChild(row);
+  });
+}
+
+/* ── TABS ── */
+document.querySelectorAll(".htab").forEach(function(btn) {
+  btn.onclick = function() {
+    activeTab = btn.dataset.tab;
+    document.querySelectorAll(".htab").forEach(function(b){ b.classList.remove("active"); });
+    btn.classList.add("active");
+    document.getElementById("recentList").style.display = activeTab === "recent" ? "block" : "none";
+    document.getElementById("savedList").style.display  = activeTab === "saved"  ? "block" : "none";
+  };
+});
+
+/* ── CONTEXT MENU ── */
+document.addEventListener("click", function() {
+  document.getElementById("packCtxMenu").style.display = "none";
+});
+document.getElementById("packCtxMenu").addEventListener("click", function(e) {
+  e.stopPropagation();
+});
+
+document.getElementById("ctxOpenPack").onclick = function() {
+  if (ctxTarget) openPackSymbols(ctxTarget.pack);
+  document.getElementById("packCtxMenu").style.display = "none";
+};
+
+document.getElementById("ctxSavePack").onclick = function() {
+  if (!ctxTarget) return;
+  if (savedPacks.length >= MAX_SAVED) {
+    alert("Maximum " + MAX_SAVED + " saved packs. Delete one first.");
+    return;
+  }
+  document.getElementById("packCtxMenu").style.display = "none";
+  // open rename modal — on confirm, save to savedPacks
+  var modal = document.getElementById("renameModal");
+  var inp   = document.getElementById("renameInput");
+  modal.classList.add("show");
+  inp.value = ctxTarget.pack.name;
+  inp.focus();
+  inp.select();
+  var saveTarget = ctxTarget;
+
+  inp.onkeydown = function(e) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      var val = inp.value.trim() || saveTarget.pack.name;
+      var copy = JSON.parse(JSON.stringify(saveTarget.pack));
+      copy.name = val;
+      savedPacks.unshift(copy);
+      localStorage.setItem("mintSaved", JSON.stringify(savedPacks));
+      modal.classList.remove("show");
+      renderHistory();
+    }
+    if (e.key === "Escape") { modal.classList.remove("show"); }
+  };
+  modal.onclick = function(e) {
+    if (e.target === modal) modal.classList.remove("show");
+  };
+};
+
+document.getElementById("ctxRenamePack").onclick = function() {
+  if (!ctxTarget) return;
+  document.getElementById("packCtxMenu").style.display = "none";
+  openRename(ctxTarget);
+};
+
+document.getElementById("ctxDeletePack").onclick = function() {
+  if (!ctxTarget) return;
+  var t = ctxTarget;
+  if (t.type === "recent") {
+    recentPacks.splice(t.idx, 1);
+    localStorage.setItem("mintRecent", JSON.stringify(recentPacks));
+  } else {
+    savedPacks.splice(t.idx, 1);
+    localStorage.setItem("mintSaved", JSON.stringify(savedPacks));
+  }
+  document.getElementById("packCtxMenu").style.display = "none";
+  renderHistory();
+};
+
+/* ── RENAME ── */
+function openRename(target) {
+  var modal = document.getElementById("renameModal");
+  var inp   = document.getElementById("renameInput");
+  modal.classList.add("show");
+  inp.value = target.pack.name;
+  inp.focus();
+  inp.select();
+
+  function doRename() {
+    var val = inp.value.trim();
+    if (!val) return;
+    if (target.type === "recent") {
+      recentPacks[target.idx].name = val;
+      localStorage.setItem("mintRecent", JSON.stringify(recentPacks));
+    } else {
+      savedPacks[target.idx].name = val;
+      localStorage.setItem("mintSaved", JSON.stringify(savedPacks));
+    }
+    modal.classList.remove("show");
+    renderHistory();
+  }
+
+  inp.onkeydown = function(e) {
+    if (e.key === "Enter")  { e.preventDefault(); doRename(); }
+    if (e.key === "Escape") { modal.classList.remove("show"); }
+  };
+  modal.onclick = function(e) {
+    if (e.target === modal) modal.classList.remove("show");
+  };
+}
+
+/* ── INIT ── */
+renderHistory();
+
+})();
+</script>
+</body>
+</html>
